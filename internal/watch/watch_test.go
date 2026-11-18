@@ -94,12 +94,15 @@ func TestSettingsTab(t *testing.T) {
 		t.Fatalf("focus=%d editor=%v", m.focus, m.editor)
 	}
 
-	body, _ := m.editor.Body(m.theme, 40)
+	body, _ := m.editor.Body(m.theme, 40, false)
 	out := ansi.Strip(strings.Join(body, "\n"))
 	for _, s := range config.Settings {
 		if !strings.Contains(out, s.Label) {
 			t.Errorf("settings list lacks %q", s.Label)
 		}
+	}
+	if strings.Contains(out, "● on") || strings.Contains(out, "○ off") || strings.Contains(out, "‹ ") {
+		t.Fatalf("settings list must show labels without values:\n%s", out)
 	}
 	view := ansi.Strip(m.View())
 	if !strings.Contains(view, "4 Settings") || !strings.Contains(view, "Setting · ") {
@@ -129,10 +132,14 @@ func TestSettingsTab(t *testing.T) {
 	if !m.editor.Editing() || m.focus != focusSettings {
 		t.Fatalf("editing=%v focus=%d after enter on a Text setting", m.editor.Editing(), m.focus)
 	}
-	nm, _ = m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+	nm, _ = m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("unique-value-123")})
 	m = nm.(model)
 	if m.focus != focusSettings || !m.editor.Editing() {
 		t.Errorf("typing a digit left the input (focus=%d editing=%v)", m.focus, m.editor.Editing())
+	}
+	detail := ansi.Strip(strings.Join(m.settingsDetailBox(80, 20), "\n"))
+	if !strings.Contains(detail, "unique-value-123") {
+		t.Fatalf("detail must show the value being edited: %s", detail)
 	}
 	nm, _ = m.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
 	m = nm.(model)

@@ -47,6 +47,9 @@ func (e *Editor) Value(key string) string { return e.values[key] }
 // Editing reports whether a value is being edited inline.
 func (e *Editor) Editing() bool { return e.editing }
 
+// InputView is the in-progress value for the dashboard detail panel.
+func (e *Editor) InputView() string { return e.input.View() }
+
 // Flash is the result of the last change, and whether it is an error.
 func (e *Editor) Flash() (msg string, bad bool) { return e.flash, e.flashBad }
 
@@ -157,7 +160,7 @@ func (e *Editor) afterChange(s Setting, old string) {
 
 // Body renders the settings list, grouped by group, and returns the index
 // of the selected line for scrolling. labelW is the column the labels take.
-func (e *Editor) Body(theme sidebar.Theme, labelW int) (lines []string, selected int) {
+func (e *Editor) Body(theme sidebar.Theme, labelW int, showValues bool) (lines []string, selected int) {
 	fg := func(c lipgloss.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }
 	dim, accent := fg(theme.TextDim), fg(theme.Accent).Bold(true)
 	group := ""
@@ -175,6 +178,10 @@ func (e *Editor) Body(theme sidebar.Theme, labelW int) (lines []string, selected
 		bar, label := "  ", fg(theme.TextPrimary)
 		if i == e.cursor {
 			bar, label = accent.Render("▌ "), accent
+		}
+		if !showValues {
+			lines = append(lines, bar+label.Render(ansi.Truncate(s.Label, labelW, "…")))
+			continue
 		}
 		v := e.values[s.Key]
 		val := fg(theme.TextPrimary).Render(Display(v))

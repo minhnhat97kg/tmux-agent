@@ -454,15 +454,14 @@ func (m model) footer() []string {
 }
 
 // settingsBox lists every setting grouped by group, like the agent list:
-// one selectable row per setting with its current value, scrolling to keep
+// one selectable label per setting, scrolling to keep
 // the selection visible.
 func (m model) settingsBox(w, h int) []string {
 	dim := m.fg(m.theme.TextDim)
 	if m.editor == nil {
 		return m.box("Settings", "", "", []string{dim.Render("no settings")}, w, h, true)
 	}
-	labelW := max(12, min(30, w-18))
-	body, selLine := m.editor.Body(m.theme, labelW)
+	body, selLine := m.editor.Body(m.theme, max(1, w-6), false)
 	if rows := h - 2; selLine >= rows {
 		body = body[min(len(body), selLine-rows+1):]
 	}
@@ -478,13 +477,17 @@ func (m model) settingsDetailBox(w, h int) []string {
 	}
 	s := m.editor.Selected()
 	v := m.editor.Value(s.Key)
+	value := m.settingValue(s, v)
+	if m.editor.Editing() {
+		value = m.editor.InputView()
+	}
 	iw := w - 4
 	body := []string{
 		m.chip(s.Group, m.theme.TextDim),
 		m.fg(m.theme.TextPrimary).Bold(true).Render(s.Label),
 		dim.Render(s.Key),
 		"",
-		dim.Render("value    ") + m.settingValue(s, v),
+		dim.Render("value    ") + value,
 		dim.Render("default  ") + m.fg(m.theme.TextMuted).Render(config.Display(s.Default)),
 	}
 	if len(s.Choices) > 0 {

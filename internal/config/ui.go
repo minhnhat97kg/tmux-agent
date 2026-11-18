@@ -57,7 +57,7 @@ func (m uiModel) View() string {
 	title := lipgloss.NewStyle().Background(m.theme.Accent).Foreground(lipgloss.Color("0")).Bold(true).Render(" ⚙ tmux-agent settings ")
 	lines := []string{title + dim.Render("  "+ConfigFile()), ""}
 
-	body, selLine := m.ed.Body(m.theme, 32)
+	body, selLine := m.ed.Body(m.theme, 32, true)
 	footerH := 4
 	room := m.height - len(lines) - footerH
 	if room < 3 {
