@@ -110,7 +110,7 @@ func TestSettingsTab(t *testing.T) {
 	}
 
 	// enter on a Bool toggles it and persists through config.Set.
-	idx := settingIndex("@agent_avatar_toast")
+	idx := settingIndex("@sidebar_auto_create")
 	s := config.Settings[idx]
 	fake.Set("", "set", "-g", s.Key, "off")
 	m = moveSetting(m, idx)

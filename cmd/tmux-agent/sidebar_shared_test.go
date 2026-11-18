@@ -28,7 +28,7 @@ func TestSharedSidebarRealTmux(t *testing.T) {
 	socket := fmt.Sprintf("sidebar-test-%d", os.Getpid())
 	run := func(args ...string) (string, error) {
 		cmd := exec.Command("tmux", append([]string{"-L", socket}, args...)...)
-		cmd.Env = append(os.Environ(), "TMUX=", "TMPDIR=/tmp")
+		cmd.Env = append(os.Environ(), "TMUX=", "TMPDIR=/tmp", "NO_COLOR=")
 		out, err := cmd.CombinedOutput()
 		return strings.TrimSpace(string(out)), err
 	}
@@ -90,6 +90,10 @@ func TestSharedSidebarRealTmux(t *testing.T) {
 		out, err := run("capture-pane", "-p", "-t", second)
 		return err == nil && strings.Contains(out, "no agents running")
 	}, "sidebar did not render")
+	colored := must("capture-pane", "-e", "-p", "-t", second)
+	if !strings.Contains(colored, "\x1b[") {
+		t.Fatal("shared sidebar must retain terminal colors")
+	}
 	must("send-keys", "-t", first, "q")
 	wait(func() bool { return paneGone(first) }, "closing first sidebar did not close its pane")
 	if err := syscall.Kill(pid, 0); err != nil {

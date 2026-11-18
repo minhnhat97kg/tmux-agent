@@ -296,6 +296,13 @@ func TestAgentColorMapsEachAgentCorrectly(t *testing.T) {
 		{tmux.AgentClaude, th.AgentClaude},
 		{tmux.AgentCodex, th.AgentCodex},
 		{tmux.AgentOpenCode, th.AgentOpenCode},
+		{"pi", th.AgentPi},
+		{"antigravity", th.AgentAntigravity},
+		{"copilot", th.AgentCopilot},
+		{"gemini", th.AgentGemini},
+		{"cursor-agent", th.AgentCursor},
+		{"aider", th.AgentAider},
+		{"amp", th.AgentAmp},
 		{tmux.AgentUnknown, th.StatusUnknown},
 		{tmux.AgentType("unknown label"), th.StatusUnknown},
 	}

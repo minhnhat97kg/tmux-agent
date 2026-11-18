@@ -19,7 +19,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
+	"github.com/muesli/termenv"
 	"tmux-agent/internal/tmux"
 )
 
@@ -236,6 +238,14 @@ func SharedServer() int {
 	// The first relay's pane may disappear while other sidebars remain.
 	// Per-pane operations use their explicit pane ID instead.
 	_ = os.Unsetenv("TMUX_PANE")
+	// The daemon has no terminal on stdout; its renderers write to pane relays.
+	if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+		profile := termenv.ANSI256
+		if strings.Contains(strings.ToLower(os.Getenv("COLORTERM")), "truecolor") || strings.Contains(strings.ToLower(os.Getenv("COLORTERM")), "24bit") {
+			profile = termenv.TrueColor
+		}
+		lipgloss.SetColorProfile(profile)
+	}
 	path := sharedSocket()
 	if os.MkdirAll(filepath.Dir(path), 0700) != nil {
 		return 1

@@ -215,7 +215,10 @@ func (m model) agentsBox(w, h int) []string {
 			selLine = len(lines)
 		}
 		icon, color := m.listIcon(a)
-		bar, name := "  ", m.fg(m.theme.TextPrimary)
+		bar, name := "  ", m.fg(m.theme.AgentColor(a.Agent))
+		if a.Agent == "" || a.Agent == tmux.AgentUnknown {
+			name = m.fg(m.theme.TextPrimary)
+		}
 		switch a.Status {
 		case tmux.StatusWaiting:
 			name = m.fg(m.theme.StatusConfirm)
@@ -333,7 +336,7 @@ func (m model) previewBox(w, h int) []string {
 	if el := elapsed(a); el != "" {
 		status += m.fg(m.theme.TextDim).Render(" " + el)
 	}
-	info := string(a.Agent) + " · " + a.Where + " · " + a.PaneID
+	info := m.theme.AgentStyle(a.Agent).Render(string(a.Agent)) + " · " + a.Where + " · " + a.PaneID
 	return m.box(label(a.PaneInfo), info, status, body, w, h, false)
 }
 

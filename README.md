@@ -1,26 +1,45 @@
 # tmux-agent
 
-Orchestrate many AI coding agents (Claude Code, Codex, Pi, OpenCode, Gemini,
-Copilot, Amp…) right inside the tmux you already use — like
-[herdr](https://herdr.dev), but as a tmux plugin instead of a new multiplexer.
+### Coordinate your AI coding agents without leaving tmux.
 
-- **Sidebar** on the left of every window: every agent in window/pane order,
-  color-coded status (`running` · `waiting` · `done` · `idle` · `error`), a
-  timer, and a `▲ needs approval` line right under any agent that needs you.
-- **Dashboard** (`o` / `prefix + A`): the agent list plus a live preview of the
-  selected agent's screen, a **NEEDS YOU** banner, task + git diffstat, and
-  the shared context.
-- **CLI for agents**: start agents, send prompts, wait, read screens, stream
-  events — agents get a skill so they can orchestrate other agents themselves.
-- **Per-project shared context**: a note board every agent in the same repo
-  can read and write — also a **task board** (`TODO @w1: …` → `DONE`) that a
-  configured **team** of workers, started in every new session, works through.
-- **Avatar**: a pixel character at the top of the sidebar (slime, cat,
-  sprout, ghost, robot) that animates with the mood of your agents and talks
-  to you like a friend ("Hey, reviewer is done — send it the commit prompt?")
-  via `claude -p` — one key handles it (`space` / `prefix + a`).
-- **Status line rollup**, desktop and phone notifications, a `done` status
-  (finished while you weren't looking).
+tmux-agent brings Claude Code, Codex, OpenCode, Pi, Gemini, Copilot, Amp and other coding agents into one workspace. See what each agent is doing, find the ones waiting for you, and coordinate work across panes and projects.
+
+![tmux-agent demo showing the sidebar, dashboard, shared board, roles, and settings](examples/demo.gif)
+
+*The demo uses simulated agent sessions and sample project data.*
+
+[Install](#install) · [Get started](#get-started) · [Features](#features) · [Commands](#cli) · [Configuration](#configuration)
+
+## One view for the whole team
+
+**Watch the work.** A sidebar follows your tmux windows and shows each agent's status, harness color, elapsed time, and requests that need attention. Expand it into a dashboard to inspect the selected pane without losing your place.
+
+**Coordinate across agents.** Send or queue prompts, share project context on a board, start workers with roles, and track a team against a task board. The CLI is available to you and to agents with the corresponding integration installed.
+
+**Keep control.** Review approval requests in the sidebar, inspect worktree changes before merging, and use checkpoints to return to earlier work. Notifications and the optional mascot help surface events without replacing your decisions.
+
+## Features
+
+| | What you can do |
+|---|---|
+| **Sidebar and dashboard** | Track agents by window, inspect live panes, and jump to an agent that needs you. |
+| **Harness support** | Integrate Claude Code, Codex, Pi and OpenCode; detect supported agents without hooks through screen scraping. |
+| **Team workflow** | Share a project board, start agents with roles, queue prompts, and run multi-step plans. |
+| **Worktrees and checkpoints** | Isolate changes, compare results, inspect diffs, merge work and restore snapshots. |
+| **Customizable UI** | Choose a theme, colors, keybindings, mascot and optional language model through Settings. |
+
+## Get started
+
+After [installing](#install), open tmux and start a supported agent. The sidebar shows detected agents in your windows. Use the tmux prefix followed by **`e`** to toggle the sidebar and **`A`** to open the dashboard.
+
+```sh
+tmux-agent list                         # see your agents
+tmux-agent ctx add "API contract: …"   # share a project note
+tmux-agent new --name tester --role tester
+tmux-agent send tester --wait "Run the tests and report failures"
+```
+
+See the [keybindings](#keys) and [CLI reference](#cli) for the full workflow.
 
 ## Install
 
@@ -67,7 +86,7 @@ tmux-agent uninstall <harness>     # remove exactly what install wrote
 | claude | hooks → `~/.claude/settings.json` | skill |
 | codex | hooks → `~/.codex/hooks.json` | skill |
 | pi | extension → `~/.pi/agent/extensions/tmux-agent.ts` | skill |
-| opencode | plugin → `~/.config/opencode/plugin/tmux-agent.js` | block in `AGENTS.md` |
+| opencode | plugin → `~/.config/opencode/plugins/tmux-agent.js` | block in `AGENTS.md` |
 | gemini · copilot · amp | screen detection (scraper) | block in its instructions file |
 
 Hooks are **merged** into the config (nothing else is overwritten; the
@@ -285,7 +304,9 @@ set -ga window-status-current-format ' #{E:@agent_status_format}'
 set -ga status-right '#{E:@agent_session_status_format}'
 ```
 
-## Configuration (`set -g …` before loading, or `tmux-agent config`)
+## Configuration
+
+Set options with `set -g …` before loading the plugin, or use `tmux-agent config`.
 
 | Option | Default | |
 |---|---|---|
@@ -303,7 +324,6 @@ set -ga status-right '#{E:@agent_session_status_format}'
 | `@agent_avatar_lang` | `en` | `vi` / `en` |
 | `@agent_avatar_lines` | `1` | text lines in the speech bubble (1–8) |
 | `@agent_avatar_personality` | `cheerful, cute and encouraging` | how the avatar talks — pick a preset (tsundere, lazy office cat, sarcastic, pirate…) or describe your own |
-| `@agent_avatar_toast` | `on` | a new avatar line also pops up in the tmux status line for a few seconds |
 | `@agent_avatar_llm` | `claude -p --model haiku` | command writing the dashboard's task summaries; `off` = none |
 | `@agent_done_prompt` | — | prompt the quick action sends to a finished agent |
 | `@agent_avatar_say_waiting` / `_done` / `_error` | | your own lines; `{name}`, `{action}` |

@@ -38,22 +38,11 @@ const (
 	defaultDigestLLM  = "ollama run --nowordwrap --think=false qwen3:0.6b"
 	digestMaxRunes    = 240
 	digestDetailRunes = 150
-	toastOption       = "@agent_avatar_toast"
 	personalityOption = "@agent_avatar_personality"
 	// DefaultPersonality is the avatar's character when none is set.
 	DefaultPersonality = "cheerful, cute and encouraging"
 	digestQuietWait    = 10 * time.Second
-	toastMillis        = "6000"
 )
-
-// toast shows text in every attached client's status line for a few
-// seconds (display-message expands formats, so # is escaped).
-func toast(text string) {
-	out, _ := tmux.RunTmux("list-clients", "-F", "#{client_name}")
-	for _, client := range strings.Fields(out) {
-		tmux.RunTmux("display-message", "-c", client, "-d", toastMillis, strings.ReplaceAll(text, "#", "##"))
-	}
-}
 
 func clip(s string, n int) string {
 	s = strings.Join(strings.Fields(s), " ")
@@ -240,9 +229,6 @@ func digestOnce(auto bool, stdout, stderr io.Writer) (bool, int) {
 	if digestKey(digestFacts(now, Alerts(now), c), c) == key {
 		tmux.SetOption(digestOption, text)
 		tmux.SetOption(digestForOption, key)
-		if text != c.Digest && opts[toastOption] != "off" {
-			toast(text)
-		}
 	} else {
 		return true, 0
 	}

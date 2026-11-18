@@ -178,7 +178,10 @@ func renderPaneText(row Row, budget int, theme Theme, icons Icons, selected bool
 		plain += "  " + icons.GitBranch + " " + stripEmoji(row.GitBranch)
 	}
 
-	nameStyle := lipgloss.NewStyle().Foreground(theme.TextPrimary)
+	nameStyle := lipgloss.NewStyle().Foreground(theme.AgentColor(row.Agent))
+	if row.Agent == "" || row.Agent == tmux.AgentUnknown {
+		nameStyle = nameStyle.Foreground(theme.TextPrimary)
+	}
 	switch row.Status {
 	case tmux.StatusWaiting:
 		nameStyle = nameStyle.Foreground(theme.StatusConfirm)

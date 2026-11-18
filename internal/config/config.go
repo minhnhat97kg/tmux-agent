@@ -52,8 +52,6 @@ var Settings = []Setting{
 		Choices: []string{"cheerful, cute and encouraging", "anime tsundere: grumbles but secretly cares", "lazy office cat, always sleepy",
 			"witty and lightly sarcastic", "serious and brief, like a professional assistant", "adventurous pirate", "reliable senpai"},
 		Help: "how the avatar talks; pick one or type your own description"},
-	{Key: "@agent_avatar_toast", Group: "Avatar", Label: "Toast new lines", Kind: Bool, Default: "on",
-		Help: "a new avatar line also pops up in the tmux status line for a few seconds"},
 	{Key: "@agent_avatar_llm", Group: "Avatar", Label: "LLM for dashboard summaries", Kind: Preset, Default: "claude -p --model haiku",
 		Choices: []string{"claude -p --model haiku", "claude -p --model sonnet", "codex exec", "gemini -p", "off"},
 		Help:    "one-line task summaries in the dashboard (prompt = last argument); off = none"},

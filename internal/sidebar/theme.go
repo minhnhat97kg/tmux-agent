@@ -59,9 +59,10 @@ type Theme struct {
 	StatusError      lipgloss.Color
 	StatusUnknown    lipgloss.Color
 
-	AgentClaude   lipgloss.Color
-	AgentCodex    lipgloss.Color
-	AgentOpenCode lipgloss.Color
+	AgentClaude                                                                             lipgloss.Color
+	AgentCodex                                                                              lipgloss.Color
+	AgentOpenCode                                                                           lipgloss.Color
+	AgentPi, AgentAntigravity, AgentCopilot, AgentGemini, AgentCursor, AgentAider, AgentAmp lipgloss.Color
 
 	Branch      lipgloss.Color
 	Port        lipgloss.Color
@@ -103,6 +104,13 @@ func DarkTheme() Theme {
 		AgentClaude:       idx(174),
 		AgentCodex:        idx(141),
 		AgentOpenCode:     idx(117),
+		AgentPi:           idx(220),
+		AgentAntigravity:  idx(213),
+		AgentCopilot:      idx(81),
+		AgentGemini:       idx(111),
+		AgentCursor:       idx(250),
+		AgentAider:        idx(114),
+		AgentAmp:          idx(215),
 		Branch:            idx(109),
 		Port:              idx(246),
 		DiffAdded:         idx(114),
@@ -140,6 +148,13 @@ func LightTheme() Theme {
 		AgentClaude:       idx(95),
 		AgentCodex:        idx(54),
 		AgentOpenCode:     idx(24),
+		AgentPi:           idx(136),
+		AgentAntigravity:  idx(90),
+		AgentCopilot:      idx(30),
+		AgentGemini:       idx(26),
+		AgentCursor:       idx(238),
+		AgentAider:        idx(28),
+		AgentAmp:          idx(130),
 		Branch:            idx(23),
 		Port:              idx(240),
 		DiffAdded:         idx(28),
@@ -181,6 +196,13 @@ func (t *Theme) themeColorTokens() []struct {
 		{"agent_claude", &t.AgentClaude},
 		{"agent_codex", &t.AgentCodex},
 		{"agent_opencode", &t.AgentOpenCode},
+		{"agent_pi", &t.AgentPi},
+		{"agent_antigravity", &t.AgentAntigravity},
+		{"agent_copilot", &t.AgentCopilot},
+		{"agent_gemini", &t.AgentGemini},
+		{"agent_cursor", &t.AgentCursor},
+		{"agent_aider", &t.AgentAider},
+		{"agent_amp", &t.AgentAmp},
 		{"branch", &t.Branch},
 		{"port", &t.Port},
 		{"diff_added", &t.DiffAdded},
@@ -277,6 +299,20 @@ func (t Theme) AgentColor(agent tmux.AgentType) lipgloss.Color {
 		return t.AgentCodex
 	case tmux.AgentOpenCode:
 		return t.AgentOpenCode
+	case "pi":
+		return t.AgentPi
+	case "antigravity":
+		return t.AgentAntigravity
+	case "copilot":
+		return t.AgentCopilot
+	case "gemini":
+		return t.AgentGemini
+	case "cursor-agent":
+		return t.AgentCursor
+	case "aider":
+		return t.AgentAider
+	case "amp":
+		return t.AgentAmp
 	}
 	return t.StatusUnknown
 }
