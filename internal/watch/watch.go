@@ -25,6 +25,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"tmux-agent/internal/activity"
+	"tmux-agent/internal/config"
 	"tmux-agent/internal/git"
 	"tmux-agent/internal/queue"
 	"tmux-agent/internal/roles"
@@ -69,6 +70,7 @@ const (
 	focusAgents focus = iota
 	focusNotes
 	focusRoles
+	focusSettings
 )
 
 type inputMode int
@@ -144,8 +146,10 @@ type model struct {
 
 	roles []string // role names, loaded when the Roles panel opens
 
+	editor *config.Editor // settings, loaded when the Settings tab opens
+
 	focus  focus
-	cursor [3]int
+	cursor [4]int
 	mode   inputMode
 	input  textinput.Model
 	flash  string
@@ -308,6 +312,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.input.Width = msg.Width - 30
+		if m.editor != nil {
+			m.editor.Resize(msg.Width)
+		}
 	case snapshot:
 		m.agents, m.scope, m.notes = msg.agents, msg.scope, msg.notes
 		m.preview, m.git = msg.preview, msg.git
@@ -329,19 +336,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyMsg:
-		if m.mode != inputNone {
-			return m.updateInput(msg)
-		}
-		return m.updateKeys(msg)
+		return m.handleKey(msg)
 	case tea.MouseMsg:
-		if m.mode != inputNone {
+		if m.mode != inputNone || m.settingsEditing() {
 			return m, nil
 		}
 		switch {
 		case msg.Button == tea.MouseButtonWheelDown:
-			return m.updateKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+			return m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 		case msg.Button == tea.MouseButtonWheelUp:
-			return m.updateKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+			return m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
 		case msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress &&
 			msg.Y == 0 && msg.X >= m.width-lipgloss.Width(m.closeButton())-2:
 			return m, m.leave()
@@ -358,18 +362,69 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// setTab switches the visible tab; the Roles list loads when it opens.
+// setTab switches the visible tab; the Roles list and the Settings values
+// load when their tab opens (so external changes show up).
 func (m model) setTab(f focus) model {
-	m.focus = f
-	if f == focusRoles {
-		m.roles = roles.Names()
-		m.clampCursor()
+	if f != focusSettings && m.editor != nil {
+		m.editor.Cancel()
 	}
+	m.focus = f
+	switch f {
+	case focusRoles:
+		m.roles = roles.Names()
+	case focusSettings:
+		if m.editor == nil {
+			m.editor = config.NewEditor()
+			m.editor.Resize(m.width)
+		} else {
+			m.editor.Refresh()
+		}
+		m.cursor[focusSettings] = m.editor.Cursor()
+	}
+	m.clampCursor()
 	return m
 }
 
+// handleKey routes a key press to the active panel: a text input, the
+// Settings editor, or the dashboard's own keys.
+func (m model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.mode != inputNone {
+		return m.updateInput(k)
+	}
+	if m.focus == focusSettings {
+		return m.updateSettings(k)
+	}
+	return m.updateKeys(k)
+}
+
+func (m model) settingsEditing() bool {
+	return m.focus == focusSettings && m.editor != nil && m.editor.Editing()
+}
+
+// updateSettings gives the Settings tab's keys to the editor; tab and 1–4
+// still switch tabs, and o still collapses the dashboard.
+func (m model) updateSettings(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.editor == nil {
+		m = m.setTab(focusSettings)
+	}
+	if !m.editor.Editing() {
+		switch k.String() {
+		case "o":
+			return m, m.leave()
+		case "tab", "shift+tab", "1", "2", "3", "4":
+			return m.updateKeys(k)
+		}
+	}
+	quit, cmd := m.editor.HandleKey(k)
+	m.cursor[focusSettings] = m.editor.Cursor()
+	if quit {
+		return m, m.leave()
+	}
+	return m, cmd
+}
+
 func (m *model) clampCursor() {
-	n := [3]int{len(m.agents), len(m.notes), len(m.roles)}
+	n := [4]int{len(m.agents), len(m.notes), len(m.roles), len(config.Settings)}
 	for i := range m.cursor {
 		if m.cursor[i] >= n[i] {
 			m.cursor[i] = n[i] - 1
@@ -403,13 +458,13 @@ func (m model) updateKeys(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", "esc", "o", "ctrl+c":
 		return m, m.leave()
 	case ",":
-		return m, sidebar.OpenSettings(m.self)
-	case "tab", "shift+tab", "1", "2", "3":
+		return m.setTab(focusSettings), nil
+	case "tab", "shift+tab", "1", "2", "3", "4":
 		switch k.String() {
 		case "tab":
-			m = m.setTab((m.focus + 1) % 3)
+			m = m.setTab((m.focus + 1) % 4)
 		case "shift+tab":
-			m = m.setTab((m.focus + 2) % 3)
+			m = m.setTab((m.focus + 3) % 4)
 		default:
 			m = m.setTab(focus(k.Runes[0] - '1'))
 		}

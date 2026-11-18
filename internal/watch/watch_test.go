@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
+	"tmux-agent/internal/config"
 	"tmux-agent/internal/sidebar"
 	"tmux-agent/internal/tmux"
 )
@@ -54,6 +55,97 @@ func TestRolesPanel(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("view lacks %q:\n%s", want, out)
 		}
+	}
+}
+
+// moveSetting puts the Settings cursor on setting idx.
+func moveSetting(m model, idx int) model {
+	for m.editor.Cursor() < idx {
+		nm, _ := m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+		m = nm.(model)
+	}
+	for m.editor.Cursor() > idx {
+		nm, _ := m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+		m = nm.(model)
+	}
+	return m
+}
+
+func settingIndex(key string) int {
+	for i, s := range config.Settings {
+		if s.Key == key {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestSettingsTab(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	fake := tmux.NewFake()
+	defer tmux.SetRunner(fake)()
+	m := model{theme: sidebar.DefaultTheme(), icons: sidebar.DefaultIcons(), width: 120, height: 100, last: map[string]paneState{}}
+
+	for i := 0; i < 3; i++ { // agents → board → roles → settings
+		nm, _ := m.updateKeys(tea.KeyMsg{Type: tea.KeyTab})
+		m = nm.(model)
+	}
+	if m.focus != focusSettings || m.editor == nil {
+		t.Fatalf("focus=%d editor=%v", m.focus, m.editor)
+	}
+
+	body, _ := m.editor.Body(m.theme, 40)
+	out := ansi.Strip(strings.Join(body, "\n"))
+	for _, s := range config.Settings {
+		if !strings.Contains(out, s.Label) {
+			t.Errorf("settings list lacks %q", s.Label)
+		}
+	}
+	view := ansi.Strip(m.View())
+	if !strings.Contains(view, "4 Settings") || !strings.Contains(view, "Setting · ") {
+		t.Errorf("view lacks the Settings tab or its detail:\n%s", view)
+	}
+
+	// enter on a Bool toggles it and persists through config.Set.
+	idx := settingIndex("@agent_avatar_toast")
+	s := config.Settings[idx]
+	fake.Set("", "set", "-g", s.Key, "off")
+	m = moveSetting(m, idx)
+	nm, _ := m.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	m = nm.(model)
+	if got := m.editor.Value(s.Key); got != "off" {
+		t.Errorf("%s = %q after enter, want off", s.Key, got)
+	}
+	if flash, _ := m.editor.Flash(); !strings.Contains(flash, "saved") {
+		t.Errorf("flash = %q, want a saved line", flash)
+	}
+
+	// enter on a Text setting edits inline; keys stay in the input; esc
+	// leaves editing without leaving the dashboard.
+	idx = settingIndex("@agent_avatar_image")
+	m = moveSetting(m, idx)
+	nm, _ = m.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	m = nm.(model)
+	if !m.editor.Editing() || m.focus != focusSettings {
+		t.Fatalf("editing=%v focus=%d after enter on a Text setting", m.editor.Editing(), m.focus)
+	}
+	nm, _ = m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+	m = nm.(model)
+	if m.focus != focusSettings || !m.editor.Editing() {
+		t.Errorf("typing a digit left the input (focus=%d editing=%v)", m.focus, m.editor.Editing())
+	}
+	nm, _ = m.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	m = nm.(model)
+	if m.editor.Editing() || m.focus != focusSettings {
+		t.Errorf("esc left editing=%v focus=%d, want editing=false on settings", m.editor.Editing(), m.focus)
+	}
+
+	// , jumps to the Settings tab from anywhere.
+	m = model{theme: sidebar.DefaultTheme(), icons: sidebar.DefaultIcons(), width: 120, height: 30, last: map[string]paneState{}}
+	nm, _ = m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(",")})
+	m = nm.(model)
+	if m.focus != focusSettings || m.editor == nil {
+		t.Errorf(", → focus=%d editor=%v", m.focus, m.editor)
 	}
 }
 

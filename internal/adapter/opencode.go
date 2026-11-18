@@ -17,11 +17,14 @@ const opencodeAgentName = "opencode"
 // Unlike Claude/Codex, OpenCode doesn't configure hooks via a
 // settings.json. It uses a JavaScript plugin
 // (assets/.opencode/plugins/tmux-agent-sidebar.js, running inside
-// OpenCode's own Bun runtime) as the bridge: the plugin registers
-// OpenCode SDK hook functions (chat.message, event, tool.execute.after)
-// and, inside each function, spawns a "tmux-agent hook opencode <event>"
-// child process with JSON on stdin, without waiting for the child to exit
-// (fire-and-forget).
+// OpenCode's own Bun runtime) as the bridge. `tmux-agent install opencode`
+// writes that file to ~/.config/opencode/plugins/tmux-agent.js — OpenCode v2
+// discovers both `plugin/` and `plugins/`, but treats only `plugins/` as V2.
+// The plugin default-exports a V2 definition (id + setup(ctx)), registers
+// `ctx.session.hook("prompt", …)`, `ctx.tool.hook("execute.after", …)`, and a
+// `ctx.event.subscribe(…)` loop, and inside each callback spawns
+// "tmux-agent hook opencode <event>" with JSON on stdin, without waiting for
+// the child to exit (fire-and-forget).
 //
 // Consequence: OpenCode has no reliable "session-end" — Bun doesn't
 // guarantee that a process.on("exit")-style handler finishes running when
@@ -41,21 +44,21 @@ func (OpenCodeAdapter) Name() string { return opencodeAgentName }
 
 // Registrations lists the source of each externalName on the JS plugin
 // side. Unlike Claude/Codex: there's no settings.json, so Trigger/Matcher
-// here describe the JS hook function + event.type, not a real
-// settings.json trigger. This table isn't ported from the Rust version
-// (the reference implementation has no registration table for OpenCode) —
-// it was rebuilt directly from the hook() calls in
+// here describe the V2 JS API path + event.type, not a real settings.json
+// trigger. This table isn't ported from the Rust version (the reference
+// implementation has no registration table for OpenCode) — it was rebuilt
+// directly from the hook() calls in
 // assets/.opencode/plugins/tmux-agent-sidebar.js.
 func (OpenCodeAdapter) Registrations() []Registration {
 	return []Registration{
-		{Trigger: "event", Matcher: "session.created", Kind: event.SessionStart},
-		{Trigger: "chat.message", Matcher: "", Kind: event.UserPromptSubmit},
-		{Trigger: "event", Matcher: "session.status:busy", Kind: event.UserPromptSubmit},
-		{Trigger: "event", Matcher: "session.status:idle", Kind: event.Stop},
-		{Trigger: "event", Matcher: "session.idle", Kind: event.Stop},
-		{Trigger: "event", Matcher: "session.error", Kind: event.StopFailure},
-		{Trigger: "event", Matcher: "permission.asked", Kind: event.Notification},
-		{Trigger: "tool.execute.after", Matcher: "", Kind: event.ActivityLog},
+		{Trigger: "ctx.event.subscribe", Matcher: "session.created", Kind: event.SessionStart},
+		{Trigger: "ctx.session.hook", Matcher: "prompt", Kind: event.UserPromptSubmit},
+		{Trigger: "ctx.event.subscribe", Matcher: "session.status:busy", Kind: event.UserPromptSubmit},
+		{Trigger: "ctx.event.subscribe", Matcher: "session.status:idle", Kind: event.Stop},
+		{Trigger: "ctx.event.subscribe", Matcher: "session.idle", Kind: event.Stop},
+		{Trigger: "ctx.event.subscribe", Matcher: "session.error", Kind: event.StopFailure},
+		{Trigger: "ctx.event.subscribe", Matcher: "permission.asked", Kind: event.Notification},
+		{Trigger: "ctx.tool.hook", Matcher: "execute.after", Kind: event.ActivityLog},
 	}
 }
 

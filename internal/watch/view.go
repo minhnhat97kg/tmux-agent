@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"tmux-agent/internal/config"
 	"tmux-agent/internal/roles"
 	"tmux-agent/internal/sidebar"
 	"tmux-agent/internal/tmux"
@@ -152,6 +153,8 @@ func (m model) View() string {
 			return m.notesBox(w, h)
 		case focusRoles:
 			return m.rolesBox(w, h)
+		case focusSettings:
+			return m.settingsBox(w, h)
 		}
 		return m.agentsBox(w, h)
 	}
@@ -177,7 +180,7 @@ func (m model) View() string {
 // tabLabels are the header tabs, in focus order; their widths also map a
 // header click to a tab (Update, watch.go).
 func (m model) tabLabels() []string {
-	return []string{fmt.Sprintf("1 Agents %d", len(m.agents)), fmt.Sprintf("2 Board %d", len(m.notes)), "3 Roles"}
+	return []string{fmt.Sprintf("1 Agents %d", len(m.agents)), fmt.Sprintf("2 Board %d", len(m.notes)), "3 Roles", "4 Settings"}
 }
 
 func (m model) header() string {
@@ -301,6 +304,8 @@ func (m model) previewBox(w, h int) []string {
 		return m.roleDetailBox(w, h)
 	case m.focus == focusRoles:
 		return m.box("Role", "", "", []string{m.fg(m.theme.TextDim).Render("no roles")}, w, h, false)
+	case m.focus == focusSettings:
+		return m.settingsDetailBox(w, h)
 	}
 	a, ok := m.selectedAgent()
 	if !ok {
@@ -415,8 +420,13 @@ func (m model) footer() []string {
 		hints = []string{"j/k", "select", "a", "add note", "d", "delete note"}
 	case focusRoles:
 		hints = []string{"j/k", "select", "n", "start agent", "e", "edit", "a", "new role", "d", "delete yours"}
+	case focusSettings:
+		hints = []string{"j/k", "select", "enter", "toggle", "h/l", "change", "e", "edit", "r", "reset"}
 	}
-	hints = append(hints, "tab/1-3", "switch tab", ",", "settings", closeKey, closeHint)
+	if m.editor != nil && m.focus == focusSettings && m.editor.Editing() {
+		hints = []string{"enter", "save", "esc", "cancel"}
+	}
+	hints = append(hints, "tab/1-4", "switch tab", closeKey, closeHint)
 	var b strings.Builder
 	b.WriteString(" ")
 	used := 1
@@ -428,11 +438,100 @@ func (m model) footer() []string {
 		b.WriteString(part)
 		used += lipgloss.Width(part)
 	}
-	flash := ""
-	if m.flash != "" {
-		flash = m.fg(m.theme.StatusWaiting).Render(" " + m.flash)
+	flash, flashBad := m.flash, false
+	if m.editor != nil && m.focus == focusSettings {
+		flash, flashBad = m.editor.Flash()
 	}
-	return []string{fit(flash, m.width), fit(b.String(), m.width)}
+	flashLine := ""
+	if flash != "" {
+		color := m.theme.StatusWaiting
+		if flashBad {
+			color = m.theme.StatusError
+		}
+		flashLine = m.fg(color).Render(" " + flash)
+	}
+	return []string{fit(flashLine, m.width), fit(b.String(), m.width)}
+}
+
+// settingsBox lists every setting grouped by group, like the agent list:
+// one selectable row per setting with its current value, scrolling to keep
+// the selection visible.
+func (m model) settingsBox(w, h int) []string {
+	dim := m.fg(m.theme.TextDim)
+	if m.editor == nil {
+		return m.box("Settings", "", "", []string{dim.Render("no settings")}, w, h, true)
+	}
+	labelW := max(12, min(30, w-18))
+	body, selLine := m.editor.Body(m.theme, labelW)
+	if rows := h - 2; selLine >= rows {
+		body = body[min(len(body), selLine-rows+1):]
+	}
+	return m.box("Settings", fmt.Sprintf("%d", len(config.Settings)), "", body, w, h, true)
+}
+
+// settingsDetailBox shows the selected setting in full: where it lives, what
+// it is set to, its default, what it means and which keys change it.
+func (m model) settingsDetailBox(w, h int) []string {
+	dim := m.fg(m.theme.TextDim)
+	if m.editor == nil {
+		return m.box("Setting", "", "", []string{dim.Render("no settings")}, w, h, true)
+	}
+	s := m.editor.Selected()
+	v := m.editor.Value(s.Key)
+	iw := w - 4
+	body := []string{
+		m.chip(s.Group, m.theme.TextDim),
+		m.fg(m.theme.TextPrimary).Bold(true).Render(s.Label),
+		dim.Render(s.Key),
+		"",
+		dim.Render("value    ") + m.settingValue(s, v),
+		dim.Render("default  ") + m.fg(m.theme.TextMuted).Render(config.Display(s.Default)),
+	}
+	if len(s.Choices) > 0 {
+		body = append(body, dim.Render("choices  ")+m.fg(m.theme.TextMuted).Render(strings.Join(s.Choices, " · ")))
+	}
+	if s.Kind == config.Int {
+		body = append(body, dim.Render("range    ")+m.fg(m.theme.TextMuted).Render(fmt.Sprintf("%d–%d", s.Min, s.Max)))
+	}
+	if s.Reload {
+		body = append(body, dim.Render("reloads the plugin to rebind the key"))
+	}
+	if s.Help != "" {
+		body = append(body, "")
+		for _, l := range strings.Split(ansi.Wordwrap(s.Help, iw, ""), "\n") {
+			body = append(body, m.fg(m.theme.TextMuted).Render(l))
+		}
+	}
+
+	key := m.fg(m.theme.Accent).Bold(true)
+	actions := []string{"enter/space", "toggle or cycle forward", "h/l ←/→", "cycle back / forward", "e", "edit", "r", "reset"}
+	var bar string
+	for i := 0; i+1 < len(actions); i += 2 {
+		bar += key.Render(actions[i]) + dim.Render(" "+actions[i+1]+"   ")
+	}
+	usage := dim.Render("tmux-agent config set " + s.Key + " <value>")
+	if pad := h - 2 - len(body) - 3; pad > 0 {
+		body = append(body, make([]string, pad)...)
+	} else {
+		body = append(body, "")
+	}
+	body = append(body, dim.Render(strings.Repeat("─", iw)), bar, usage)
+	return m.box("Setting · "+s.Label, fmt.Sprintf("%d/%d", m.editor.Cursor()+1, len(config.Settings)), "", body, w, h, true)
+}
+
+// settingValue styles a setting's current value by kind.
+func (m model) settingValue(s config.Setting, v string) string {
+	switch s.Kind {
+	case config.Bool:
+		color, text := m.theme.StatusRunning, "● on"
+		if v != "on" {
+			color, text = m.theme.TextDim, "○ off"
+		}
+		return m.fg(color).Bold(true).Render(text)
+	case config.Choice, config.Preset:
+		return m.fg(m.theme.TextPrimary).Bold(true).Render(config.Display(v))
+	}
+	return m.fg(m.theme.TextPrimary).Render(config.Display(v))
 }
 
 // rolesBox lists the roles (`tmux-agent roles`): yours marked, the

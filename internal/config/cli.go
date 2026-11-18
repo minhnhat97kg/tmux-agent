@@ -18,7 +18,7 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 		w := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "KEY\tVALUE\tDEFAULT\tGROUP")
 		for _, s := range Settings {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Key, display(Get(s)), display(s.Default), s.Group)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Key, Display(Get(s)), Display(s.Default), s.Group)
 		}
 		w.Flush()
 		return 0
@@ -59,7 +59,7 @@ func Dispatch(args []string, stdout, stderr io.Writer) int {
 			if s.Reload {
 				ReloadKeys(old)
 			}
-			fmt.Fprintf(stdout, "%s = %s\n", s.Key, display(v))
+			fmt.Fprintf(stdout, "%s = %s\n", s.Key, Display(v))
 		}
 		return 0
 	}

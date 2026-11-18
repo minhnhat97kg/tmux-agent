@@ -92,9 +92,9 @@ you each time, allow it in the harness — for Claude, in
 | `enter` | sidebar | jump to the pane |
 | `1` `2` `3` · `y` `n` | sidebar | answer the prompt of the selected waiting agent |
 | `o` · click `o ⇱ expand` | sidebar | open the dashboard |
-| `,` | sidebar / dashboard | settings |
+| `,` | sidebar / dashboard | settings: sidebar opens the popup, dashboard jumps to the Settings tab |
 | `/` `r` `p` `v` `x` | sidebar | filter · repo filter · pin · select · delete worktree |
-| `tab` | dashboard | cycle Agents → Board → Roles (the right panel shows the full note / role prompt; in Roles: `n` start an agent with it, `e` edit it in `$VISUAL`/`$EDITOR` (a built-in is copied to your roles dir first), `a` new role, `d` delete yours) |
+| `tab` | dashboard | cycle Agents → Board → Roles → Settings (`1`–`4` select a tab; the right panel shows the full note / role prompt / setting; in Roles: `n` start an agent with it, `e` edit it in `$VISUAL`/`$EDITOR` (a built-in is copied to your roles dir first), `a` new role, `d` delete yours; in Settings: `j/k` move, `enter`/`space` toggle or cycle forward, `h/l` (`←/→`) cycle back/forward, `e` edit a text/number, `r` reset) |
 | `s` / `a` / `d` | dashboard | send a prompt / add a note / delete a note |
 | `o` `q` `esc` | dashboard | collapse |
 
@@ -111,7 +111,7 @@ you each time, allow it in the harness — for Claude, in
 | `tmux-agent plan run <file>` | Multi-step plan: one line per task, `name [@role] [after a,b]: prompt` |
 | `tmux-agent save` · `restore [--dry-run]` | Save / bring back your agents after a restart (Claude resumes its session); auto-saved every 30s |
 | `tmux-agent tokens` | Tokens used per Claude agent + total |
-| `tmux-agent config [list\|get\|set\|reset\|path]` | Central configuration; no arguments = the settings screen (also `,`) |
+| `tmux-agent config [list\|get\|set\|reset\|path]` | Central configuration; no arguments = the settings screen (also `,` in the sidebar, or the Settings tab in the dashboard) |
 | `tmux-agent list [--json]` | pane · name · agent · status · window · cwd |
 | `tmux-agent name [<pane>] <name>` | Name an agent; the name works instead of a pane id everywhere |
 | `tmux-agent send <pane> [--now] [--wait] [--timeout D] <prompt>` | Type a prompt + Enter. A busy agent (working, or waiting on you) gets it **queued** and delivered when idle; `--now` types right away |
@@ -157,9 +157,11 @@ tmux-agent kill tester
 
 ### Central configuration
 
-`,` in the sidebar/dashboard (or `tmux-agent config`) opens the settings
-screen: avatar (character, LLM, language, lines…), sidebar, agents, team,
-notifications, keys. Changes apply at once and are saved to
+`,` in the sidebar opens the settings popup; the dashboard's **Settings** tab
+(`tab` → Settings, `4`, or `,`) has the same list, with the selected setting
+and its keys in the right panel. `tmux-agent config` opens the standalone
+screen. It covers avatar (character, LLM, language, lines…), sidebar, agents,
+team, notifications, keys. Changes apply at once and are saved to
 `~/.config/tmux-agent/config.conf` (tmux syntax, loaded by the plugin at
 startup). From scripts: `tmux-agent config set <key> <value>` — short names
 work (`avatar`, `width`, `notify_url`…).

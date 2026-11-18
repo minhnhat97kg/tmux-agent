@@ -137,9 +137,9 @@ func TestCodexHasNoStaticConfigFile(t *testing.T) {
 // TestOpenCodeRegistrationsMatchPluginJS matches TEXT STRINGS — Go cannot run
 // JavaScript. For each Registration of OpenCodeAdapter:
 //
-//   - The Trigger must appear as a hook function key in the JS, either
-//     quoted ("chat.message": async…, "tool.execute.after": async…) or as a
-//     bare identifier followed by a colon (event: async…).
+//   - The Trigger must appear as-is in the JS. These are V2 API paths
+//     (ctx.event.subscribe, ctx.session.hook, ctx.tool.hook), not quoted keys
+//     like the V1 plugin's "chat.message".
 //   - The Matcher part before ':' (if any — "session.status:busy" only has
 //     "session.status" as a standalone literal in JS, "busy" is a sub-branch
 //     inside a switch) must appear as a quoted string in the JS
@@ -158,10 +158,8 @@ func TestOpenCodeRegistrationsMatchPluginJS(t *testing.T) {
 	content := string(data)
 
 	for _, reg := range (OpenCodeAdapter{}).Registrations() {
-		quoted := `"` + reg.Trigger + `"`
-		bareKey := reg.Trigger + ":"
-		if !strings.Contains(content, quoted) && !strings.Contains(content, bareKey) {
-			t.Errorf("trigger %q (Kind %q) not found in the plugin JS (tried %q and %q)", reg.Trigger, reg.Kind, quoted, bareKey)
+		if !strings.Contains(content, reg.Trigger) {
+			t.Errorf("trigger %q (Kind %q) not found in the plugin JS", reg.Trigger, reg.Kind)
 		}
 
 		if reg.Matcher == "" {

@@ -38,6 +38,7 @@ type harness struct {
 	detect []string // a config dir that exists, or a binary on PATH
 	hooks  string   // JSON config to merge hook entries into ("" = none)
 	file   string   // extension/plugin file to write ("" = none)
+	legacy []string // files older installs wrote; removed on install and uninstall
 	skills string   // skills root (<root>/tmux-agent/SKILL.md)
 	instr  string   // global instructions file for a marked block
 	note   string   // shown after install
@@ -48,7 +49,13 @@ var harnesses = []harness{
 	{name: "codex", detect: []string{".codex", "codex"}, hooks: ".codex/hooks.json", skills: ".codex/skills",
 		note: "Codex runs hooks only when its hooks feature is enabled in your version — if status stays 'unknown', the screen scraper still covers it."},
 	{name: "pi", detect: []string{".pi", "pi"}, file: ".pi/agent/extensions/tmux-agent.ts", skills: ".pi/agent/skills"},
-	{name: "opencode", detect: []string{".config/opencode", "opencode"}, file: ".config/opencode/plugin/tmux-agent.js", instr: ".config/opencode/AGENTS.md"},
+	{name: "opencode", detect: []string{".config/opencode", "opencode"},
+		// OpenCode v2 discovers both directories, but only treats `plugins/`
+		// as V2. Older tmux-agent installs wrote the V1 plugin to `plugin/`;
+		// remove that file so v2 can't load the stale, rejected copy.
+		file:   ".config/opencode/plugins/tmux-agent.js",
+		legacy: []string{".config/opencode/plugin/tmux-agent.js"},
+		instr:  ".config/opencode/AGENTS.md"},
 	{name: "gemini", detect: []string{".gemini", "gemini"}, instr: ".gemini/GEMINI.md", note: "status comes from screen detection"},
 	{name: "copilot", detect: []string{".copilot", "copilot"}, instr: ".copilot/copilot-instructions.md", note: "status comes from screen detection"},
 	{name: "amp", detect: []string{".config/amp", "amp"}, instr: ".config/amp/AGENTS.md", note: "status comes from screen detection"},
@@ -207,6 +214,11 @@ func (e env) install(h harness) error {
 			return err
 		}
 		e.say("plugin", "~/"+h.file)
+		for _, p := range h.legacy {
+			if err := e.remove(p); err != nil {
+				return err
+			}
+		}
 	}
 	if h.skills != "" {
 		if err := e.write(filepath.Join(e.path(h.skills), "tmux-agent", "SKILL.md"), skill.Render(e.bin)); err != nil {
@@ -232,17 +244,14 @@ func (e env) uninstall(h harness) error {
 			e.say("hooks", "removed from ~/"+h.hooks)
 		}
 	}
-	for _, p := range []string{h.file, filepath.Join(h.skills, "tmux-agent")} {
+	paths := append([]string{h.file}, h.legacy...)
+	paths = append(paths, filepath.Join(h.skills, "tmux-agent"))
+	for _, p := range paths {
 		if p == "" || p == "tmux-agent" {
 			continue
 		}
-		if _, err := os.Stat(e.path(p)); err == nil {
-			if !e.dry {
-				if err := os.RemoveAll(e.path(p)); err != nil {
-					return err
-				}
-			}
-			e.say("remove", "~/"+p)
+		if err := e.remove(p); err != nil {
+			return err
 		}
 	}
 	if h.instr != "" {
@@ -459,6 +468,25 @@ func (e env) editText(path string, fn func(string) string) error {
 		return nil
 	}
 	return e.write(path, out)
+}
+
+// remove deletes rel (relative to $HOME) if it exists. It is used both for
+// files the integration owns and for legacy paths an older install left
+// behind.
+func (e env) remove(rel string) error {
+	if rel == "" {
+		return nil
+	}
+	if _, err := os.Stat(e.path(rel)); err != nil {
+		return nil
+	}
+	if !e.dry {
+		if err := os.RemoveAll(e.path(rel)); err != nil {
+			return err
+		}
+	}
+	e.say("remove", "~/"+rel)
+	return nil
 }
 
 func (e env) write(path, content string) error {

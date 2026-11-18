@@ -114,6 +114,56 @@ func TestPluginsPointAtBinary(t *testing.T) {
 	}
 }
 
+func TestOpenCodePluginUsesV2DirAndRemovesLegacy(t *testing.T) {
+	e := testEnv(t)
+	h, _ := find("opencode")
+	if h.file != ".config/opencode/plugins/tmux-agent.js" {
+		t.Fatalf("opencode plugin path = %q, want the V2 plugins/ directory", h.file)
+	}
+
+	// An older tmux-agent wrote the V1 plugin into plugin/ (singular).
+	legacy := e.path(".config/opencode/plugin/tmux-agent.js")
+	if err := os.MkdirAll(filepath.Dir(legacy), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy, []byte("// V1 plugin"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := e.install(h); err != nil {
+		t.Fatal(err)
+	}
+	installed := e.path(".config/opencode/plugins/tmux-agent.js")
+	b, err := os.ReadFile(installed)
+	if err != nil {
+		t.Fatalf("V2 plugin must be installed: %v", err)
+	}
+	for _, want := range []string{`export default`, `id: "tmux-agent"`, `async setup(ctx)`, `ctx.event.subscribe`, `ctx.session.hook`, `ctx.tool.hook`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("installed plugin missing %q", want)
+		}
+	}
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Error("legacy V1 plugin at plugin/tmux-agent.js must be removed on install")
+	}
+
+	// Uninstall removes both the V2 file and a legacy file that reappeared.
+	if err := os.MkdirAll(filepath.Dir(legacy), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy, []byte("// V1 plugin"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.uninstall(h); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{installed, legacy} {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Errorf("%s must be removed on uninstall", p)
+		}
+	}
+}
+
 func TestDryRunWritesNothing(t *testing.T) {
 	e := testEnv(t)
 	e.dry = true
