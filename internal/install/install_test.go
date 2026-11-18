@@ -1,0 +1,129 @@
+package install
+
+import (
+	"bytes"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func testEnv(t *testing.T) env {
+	return env{home: t.TempDir(), bin: "/opt/tmux-agent/bin/tmux-agent", hookScript: "/opt/tmux-agent/assets/hook.sh", out: &bytes.Buffer{}}
+}
+
+func readJSON(t *testing.T, path string) map[string]any {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := map[string]any{}
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+// Install replaces stale tmux-agent hooks (older install path), keeps the
+// user's own hooks and settings, backs the file up, and uninstall removes
+// exactly what install added.
+func TestClaudeHooksMergeAndUninstall(t *testing.T) {
+	e := testEnv(t)
+	cfg := e.path(".claude/settings.json")
+	os.MkdirAll(filepath.Dir(cfg), 0o755)
+	os.WriteFile(cfg, []byte(`{
+  "theme": "dark",
+  "hooks": {
+    "Stop": [
+      {"matcher": "", "hooks": [{"type": "command", "command": "notify-send done"}]},
+      {"matcher": "", "hooks": [{"type": "command", "command": "bash '/old/place/assets/hook.sh' claude stop"}]}
+    ]
+  }
+}`), 0o600)
+	h, _ := find("claude")
+
+	for i := 0; i < 2; i++ { // twice: must be idempotent
+		if err := e.install(h); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := readJSON(t, cfg)
+	if got["theme"] != "dark" {
+		t.Error("unrelated settings must survive")
+	}
+	stop := got["hooks"].(map[string]any)["Stop"].([]any)
+	if len(stop) != 2 {
+		t.Fatalf("Stop hooks = %d, want 2 (user's + ours, stale one replaced): %v", len(stop), stop)
+	}
+	b, _ := json.Marshal(stop)
+	if strings.Contains(string(b), "/old/place") || !strings.Contains(string(b), "/opt/tmux-agent/assets/hook.sh") || !strings.Contains(string(b), "notify-send") {
+		t.Errorf("Stop hooks = %s", b)
+	}
+	if _, err := os.Stat(cfg + ".tmux-agent.bak"); err != nil {
+		t.Error("original must be backed up")
+	}
+	if _, err := os.Stat(e.path(".claude/skills/tmux-agent/SKILL.md")); err != nil {
+		t.Error("skill must be installed")
+	}
+
+	if err := e.uninstall(h); err != nil {
+		t.Fatal(err)
+	}
+	got = readJSON(t, cfg)
+	hooks := got["hooks"].(map[string]any)
+	if len(hooks) != 1 || len(hooks["Stop"].([]any)) != 1 {
+		t.Errorf("after uninstall only the user's hook must remain, got %v", hooks)
+	}
+	if _, err := os.Stat(e.path(".claude/skills/tmux-agent")); !os.IsNotExist(err) {
+		t.Error("skill must be removed")
+	}
+}
+
+func TestInstructionBlockSetReplaceRemove(t *testing.T) {
+	e := testEnv(t)
+	path := e.path(".gemini/GEMINI.md")
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	os.WriteFile(path, []byte("# My rules\nbe nice\n"), 0o644)
+	h, _ := find("gemini")
+
+	e.install(h)
+	e.install(h)
+	b, _ := os.ReadFile(path)
+	if strings.Count(string(b), blockBegin) != 1 || !strings.HasPrefix(string(b), "# My rules\nbe nice\n\n") || strings.Contains(string(b), "name: tmux-agent") {
+		t.Fatalf("after install:\n%s", b)
+	}
+	e.uninstall(h)
+	b, _ = os.ReadFile(path)
+	if strings.Contains(string(b), "tmux-agent") || !strings.Contains(string(b), "be nice") {
+		t.Fatalf("after uninstall:\n%s", b)
+	}
+}
+
+func TestPluginsPointAtBinary(t *testing.T) {
+	e := testEnv(t)
+	for _, name := range []string{"pi", "opencode"} {
+		h, _ := find(name)
+		if err := e.install(h); err != nil {
+			t.Fatal(err)
+		}
+		b, err := os.ReadFile(e.path(h.file))
+		if err != nil || !strings.Contains(string(b), `"/opt/tmux-agent/bin/tmux-agent"`) {
+			t.Errorf("%s plugin must call the binary by absolute path:\n%s", name, b)
+		}
+	}
+}
+
+func TestDryRunWritesNothing(t *testing.T) {
+	e := testEnv(t)
+	e.dry = true
+	for _, h := range harnesses {
+		if err := e.install(h); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, _ := os.ReadDir(e.home)
+	if len(entries) != 0 {
+		t.Errorf("dry run wrote %v", entries)
+	}
+}

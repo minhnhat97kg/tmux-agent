@@ -1,0 +1,12 @@
+tmux-agent
+
+This project is a tmux plugin rewritten in Go. Its architecture, feature set,
+tmux option names, activity log format, key bindings, and the shell/JSON/JS
+assets in assets/ derive from:
+
+  hiroppy/tmux-agent-sidebar
+  https://github.com/hiroppy/tmux-agent-sidebar
+  Copyright (c) hiroppy — MIT License
+
+Files in assets/ are copied as-is (except for the binary path) and keep the
+original project's MIT license.

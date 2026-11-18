@@ -1,0 +1,12 @@
+target/
+bin/
+*.test
+
+# Local tooling / agent state (never commit)
+.claude/settings.local.json
+.superpowers/
+.env
+.env.*
+*.pem
+*.key
+*.p12
