@@ -44,12 +44,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		// No subcommand means run the sidebar TUI. Print nothing to
 		// stdout/stderr on this path — sidebar.Run() owns the entire screen.
-		return sidebar.Run()
+		return sidebar.RunSharedRelay()
 	}
 
 	cmd := args[0]
 	rest := args[1:]
 	switch cmd {
+	case "sidebar-server":
+		return sidebar.SharedServer()
 	case "version", "--version":
 		fmt.Fprintln(stdout, version.Version)
 		return exitOK

@@ -10,6 +10,7 @@ import (
 	"image/gif"
 	_ "image/jpeg"
 	"image/png"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -343,7 +344,7 @@ type imagesUploadedMsg struct{ ids []uint32 }
 // uploadImages writes the missing images to the terminal (through tmux
 // passthrough, on this pane's output). One Write per image keeps each
 // escape sequence in one piece.
-func uploadImages(set imageSet, have map[uint32]bool) tea.Cmd {
+func uploadImages(set imageSet, have map[uint32]bool, output io.Writer) tea.Cmd {
 	var todo []uint32
 	for id := range set.data {
 		if !have[id] {
@@ -355,7 +356,7 @@ func uploadImages(set imageSet, have map[uint32]bool) tea.Cmd {
 	}
 	return func() tea.Msg {
 		for _, id := range todo {
-			os.Stdout.Write(kittyUpload(id, set.data[id](), set.cols, set.rows))
+			output.Write(kittyUpload(id, set.data[id](), set.cols, set.rows))
 		}
 		return imagesUploadedMsg{ids: todo}
 	}
@@ -363,7 +364,7 @@ func uploadImages(set imageSet, have map[uint32]bool) tea.Cmd {
 
 // dropImages deletes from the terminal the images of old that next doesn't
 // use, and forgets them in have.
-func dropImages(old, next imageSet, have map[uint32]bool) tea.Cmd {
+func dropImages(old, next imageSet, have map[uint32]bool, output io.Writer) tea.Cmd {
 	var gone []uint32
 	for id := range old.data {
 		if _, keep := next.data[id]; !keep && have[id] {
@@ -376,7 +377,7 @@ func dropImages(old, next imageSet, have map[uint32]bool) tea.Cmd {
 	}
 	return func() tea.Msg {
 		for _, id := range gone {
-			os.Stdout.Write(kittyDelete(id))
+			output.Write(kittyDelete(id))
 		}
 		return nil
 	}

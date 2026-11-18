@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
@@ -152,11 +153,10 @@ func cleanDigest(out string) string {
 }
 
 // digestFor returns the stored digest if it still describes the agents —
-// or, while a line for the current state is being written, the previous
-// one (better a few seconds stale than the built-in phrase flashing in).
+// only while it describes the current state.
 func (c AvatarConfig) digestFor(sessions []tmux.SessionInfo, alerts []Alert) string {
 	key := digestKey(digestFacts(sessions, alerts, c), c)
-	if c.Digest == "" || (c.DigestFor != key && c.DigestAsking != key) {
+	if c.Digest == "" || c.DigestFor != key {
 		return ""
 	}
 	return c.Digest
@@ -165,6 +165,29 @@ func (c AvatarConfig) digestFor(sessions []tmux.SessionInfo, alerts []Alert) str
 // Digest is the `digest` command.
 func Digest(args []string, stdout, stderr io.Writer) int {
 	auto := len(args) > 0 && args[0] == "--auto"
+	// ponytail: one writer across tmux servers; use per-server locks if needed.
+	dir := llmCacheDir()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return 1
+	}
+	f, err := os.OpenFile(filepath.Join(dir, "digest.lock"), os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return 1
+	}
+	defer f.Close()
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		return 0
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	for {
+		changed, result := digestOnce(auto, stdout, stderr)
+		if !changed {
+			return result
+		}
+	}
+}
+
+func digestOnce(auto bool, stdout, stderr io.Writer) (bool, int) {
 	opts := tmux.GetAllGlobalOptions()
 	c := avatarConfigFromOptions(opts)
 	sessions := tmux.QuerySessions()
@@ -174,32 +197,15 @@ func Digest(args []string, stdout, stderr io.Writer) int {
 		if !auto {
 			fmt.Fprintln(stdout, c.Digest)
 		}
-		return 0
+		return false, 0
 	}
 	command := strings.TrimSpace(opts[digestLLMOption])
 	if command == "" {
 		command = defaultDigestLLM
 	}
 	if command == "off" || !commandExists(command) {
-		return 0 // the built-in phrases stay; no failing call per event
+		return false, 0 // the built-in phrases stay; no failing call per event
 	}
-	// One writer per state: the hooks and every open sidebar fire on the
-	// same change, and a tmux option can't be claimed atomically — a lock
-	// file can (O_EXCL), so it's one model call and one toast.
-	dir := llmCacheDir()
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return 1
-	}
-	lock := filepath.Join(dir, "digest-"+key+".lock")
-	if st, err := os.Stat(lock); err == nil && time.Since(st.ModTime()) > 2*llmTimeout+digestQuietWait {
-		os.Remove(lock)
-	}
-	f, err := os.OpenFile(lock, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if err != nil {
-		return 0 // another run is writing this one
-	}
-	f.Close()
-	defer os.Remove(lock)
 	tmux.SetOption(digestAskOption, key) // the bubble keeps the old line meanwhile
 	// All quiet: wait a bit first — an agent that starts again right away
 	// (the next prompt, a background task) would make the fun line moot.
@@ -208,12 +214,13 @@ func Digest(args []string, stdout, stderr io.Writer) int {
 		now := tmux.QuerySessions()
 		if digestKey(digestFacts(now, Alerts(now), c), c) != key {
 			tmux.SetOption(digestAskOption, "")
-			return 0
+			return true, 0
 		}
 	}
 	// A line in the wrong script (foreignScript) is dropped and asked
 	// once more.
 	var text string
+	var err error
 	for try := 0; try < 2 && (try == 0 || foreignScript(text)); try++ {
 		var out string
 		out, err = runLLMRaw(command, digestPrompt(facts, c))
@@ -225,7 +232,7 @@ func Digest(args []string, stdout, stderr io.Writer) int {
 	if err != nil || text == "" {
 		tmux.SetOption(digestAskOption, "")
 		fmt.Fprintln(stderr, "digest: no answer from", command, err)
-		return 1
+		return false, 1
 	}
 	// Runs overlap when events come fast: only the one whose state is still
 	// current gets to write, so the text never pairs with another state.
@@ -236,9 +243,11 @@ func Digest(args []string, stdout, stderr io.Writer) int {
 		if text != c.Digest && opts[toastOption] != "off" {
 			toast(text)
 		}
+	} else {
+		return true, 0
 	}
 	fmt.Fprintln(stdout, text)
-	return 0
+	return false, 0
 }
 
 // digestKick asks for a new line when the agents' state changed without an
@@ -250,10 +259,11 @@ func (m *Model) digestKick() tea.Cmd {
 		return nil
 	}
 	k := digestKey(digestFacts(m.sessions, Alerts(m.sessions), m.avatar), m.avatar)
-	if k == m.avatar.DigestFor || k == m.digestKicked {
+	if k == m.avatar.DigestFor || (k == m.digestKicked && time.Since(m.digestKickedAt) < time.Minute) {
 		return nil
 	}
 	m.digestKicked = k
+	m.digestKickedAt = time.Now()
 	return func() tea.Msg {
 		bin, err := os.Executable()
 		if err != nil {

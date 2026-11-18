@@ -6,6 +6,7 @@ package sidebar
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -27,7 +28,7 @@ import (
 
 const (
 	// refreshInterval is the cycle for rebuilding the list from tmux.QuerySessions().
-	refreshInterval = time.Second
+	refreshInterval = 3 * time.Second
 	// animInterval is the cycle for advancing the spinner frame, and also the
 	// debounce cadence for writing global options (cursor/repo filter) that
 	// changed locally.
@@ -545,7 +546,7 @@ func moveCursor(cursor, delta, count int) (int, bool) {
 
 // RefreshMsg carries the session list that just finished being queried from
 // tmux — the result of a tmux.QuerySessions() call completed inside a
-// tea.Cmd, whether triggered by the 1s tick or by SIGUSR1.
+// tea.Cmd, whether triggered by the periodic tick or by SIGUSR1.
 type RefreshMsg struct {
 	Sessions []tmux.SessionInfo
 	Theme    Theme
@@ -565,12 +566,12 @@ type RefreshMsg struct {
 // option write (cursor/filter/repo filter).
 type AnimTickMsg struct{}
 
-// refreshTickMsg is the 1-second tick that triggers one rebuild of the list,
+// refreshTickMsg is the periodic tick that triggers one rebuild of the list,
 // and schedules itself again for the next tick.
 type refreshTickMsg struct{}
 
 // refreshRequestMsg is a request to rebuild the list IMMEDIATELY, without
-// waiting for the 1s tick — SIGUSR1 sends this kind via p.Send(). Unlike
+// waiting for the periodic tick — SIGUSR1 sends this kind via p.Send(). Unlike
 // refreshTickMsg: after handling it, it does NOT schedule a new tick, so it
 // doesn't stack on top of the regular tick cycle already running.
 type refreshRequestMsg struct{}
@@ -604,6 +605,7 @@ type repoFilterSavedMsg struct{ Success bool }
 
 // Model is the sidebar's TUI state.
 type Model struct {
+	output io.Writer
 	// dialogs: prompts of waiting agents by pane id (approval inbox).
 	dialogs map[string]scrape.Dialog
 
@@ -625,7 +627,8 @@ type Model struct {
 	lastFocus string
 	// digestKicked is the agents' state this sidebar last asked a line for
 	// (digestKick, digest.go).
-	digestKicked string
+	digestKicked   string
+	digestKickedAt time.Time
 
 	// notes/notesScope: the shared-context board of the project of the pane
 	// under the cursor, shown below the list when there's room (view.go).
@@ -746,6 +749,7 @@ type Model struct {
 // (see refreshCmd).
 func NewModel(tmuxPane string) Model {
 	return Model{
+		output:     os.Stdout,
 		tmuxPane:   tmuxPane,
 		viewport:   viewport.New(0, 0),
 		repoFilter: RepoFilterAll,
@@ -979,7 +983,7 @@ func (m *Model) detailRefreshCmd() tea.Cmd {
 
 // applyDetailMsg applies the detailFetchCmd result to Model — ignored if the
 // cursor has already moved to a different pane before this Cmd returns
-// (stale result; the next detailRefreshCmd round/1s tick will re-ask for the
+// (stale result; the next detailRefreshCmd round/periodic tick will re-ask for the
 // correct current pane).
 func (m *Model) applyDetailMsg(msg detailMsg) {
 	cursorID, ok := paneIDAt(m.rows, m.cursor)
@@ -1070,7 +1074,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// The bottom summary panel (part 6, replacing the "i" popup) tracks
 		// the pane CURRENTLY UNDER THE CURSOR, always refetching git/activity
-		// every 1s tick — no more gating on the popup (the detail popup was
+		// every periodic tick — no more gating on the popup (the detail popup was
 		// removed entirely, real user feedback: "show it directly at the
 		// root"). detailRefreshCmd returns nil itself when there's no pane
 		// under the cursor.
@@ -1117,7 +1121,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.lastRemoved = msg.Undo
 			}
 			// Fetch the new list RIGHT AWAY — the window/worktree just
-			// disappeared, don't wait for the next 1s tick to see it.
+			// disappeared, don't wait for the next periodic tick to see it.
 			return m, refreshCmd()
 		}
 		// The error stays in the popup so the user sees it and can retry
@@ -1240,13 +1244,13 @@ func (m *Model) imageRefresh(msg RefreshMsg) tea.Cmd {
 		// resize alone — a sidebar in another, wider window may still show
 		// them (images live in the terminal, shared by every pane).
 		if !widthOnly {
-			drop = dropImages(old, m.imgSet, m.imgHave)
+			drop = dropImages(old, m.imgSet, m.imgHave, m.output)
 		}
 	}
 	if m.imgUploading {
 		return drop
 	}
-	cmd := uploadImages(m.imgSet, m.imgHave)
+	cmd := uploadImages(m.imgSet, m.imgHave, m.output)
 	m.imgUploading = cmd != nil
 	return tea.Batch(drop, cmd)
 }
@@ -1374,7 +1378,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// The bottom summary panel tracks the cursor (part 6, replacing
 			// the "i" popup — real user feedback: "show it directly at the
 			// root") — moving panes must refetch git/activity RIGHT AWAY,
-			// not wait for the 1s tick.
+			// not wait for the periodic tick.
 			if _, ok := paneIDAt(m.rows, m.cursor); ok {
 				return m, m.detailRefreshCmd()
 			}

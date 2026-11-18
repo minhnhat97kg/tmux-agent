@@ -33,7 +33,9 @@ const (
 // startBackgroundWorkers starts the two background goroutines. done closes
 // when the program exits (Run(), run.go) — the same channel used by the
 // SIGUSR1 goroutine, no need for a separate stop mechanism per worker.
-func startBackgroundWorkers(p *tea.Program, done <-chan struct{}) {
+type messageSender interface{ Send(tea.Msg) }
+
+func startBackgroundWorkers(p messageSender, done <-chan struct{}) {
 	go portScanLoop(p, done)
 	go sessionScanLoop(p, done)
 }
@@ -43,7 +45,7 @@ func startBackgroundWorkers(p *tea.Program, done <-chan struct{}) {
 // pane itself using the already-known PanePID (computePortsByPane). If
 // lsof/ps aren't available on the machine (ok=false), this round is skipped,
 // leaving the Model's portsByPane unchanged.
-func portScanLoop(p *tea.Program, done <-chan struct{}) {
+func portScanLoop(p messageSender, done <-chan struct{}) {
 	ticker := time.NewTicker(portScanPollInterval)
 	defer ticker.Stop()
 
@@ -67,7 +69,7 @@ func portScanLoop(p *tea.Program, done <-chan struct{}) {
 
 // sessionScanLoop scans the session names set by the agent
 // (~/.claude/sessions/*.json) every 10 seconds.
-func sessionScanLoop(p *tea.Program, done <-chan struct{}) {
+func sessionScanLoop(p messageSender, done <-chan struct{}) {
 	ticker := time.NewTicker(sessionScanInterval)
 	defer ticker.Stop()
 

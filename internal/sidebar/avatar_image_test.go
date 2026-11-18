@@ -199,10 +199,10 @@ func TestDropImagesFreesOnlyUnused(t *testing.T) {
 	old := imageSet{data: map[uint32]func() []byte{1: nil, 2: nil}}
 	next := imageSet{data: map[uint32]func() []byte{2: nil, 3: nil}}
 	have := map[uint32]bool{1: true, 2: true}
-	if dropImages(old, next, have) == nil || have[1] || !have[2] {
+	if dropImages(old, next, have, os.Stdout) == nil || have[1] || !have[2] {
 		t.Fatalf("want image 1 dropped and 2 kept, have = %v", have)
 	}
-	if dropImages(next, next, have) != nil {
+	if dropImages(next, next, have, os.Stdout) != nil {
 		t.Fatal("nothing to drop when the set is the same")
 	}
 }
