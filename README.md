@@ -1,10 +1,17 @@
-# tmux-agent
+<h1 align="center">tmux-agent</h1>
 
-### Coordinate your AI coding agents without leaving tmux.
+<p align="center"><strong>Coordinate your AI coding agents without leaving tmux.</strong></p>
 
-tmux-agent brings Claude Code, Codex, OpenCode, Pi, Gemini, Copilot, Amp and other coding agents into one workspace. See what each agent is doing, find the ones waiting for you, and coordinate work across panes and projects.
+<p align="center">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <a href="go.mod"><img alt="Go 1.26" src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&amp;logoColor=white"></a>
+</p>
 
-![tmux-agent demo showing the sidebar, dashboard, shared board, roles, and settings](examples/demo.gif)
+tmux-agent brings Claude Code, Antigravity (AGY), Codex, OpenCode, Pi, Gemini, Copilot, Amp and other coding agents into one workspace. See what each agent is doing, find the ones waiting for you, and coordinate work across panes and projects.
+
+## Demo
+
+![tmux-agent dashboard displaying Claude, Antigravity, Codex and OpenCode](examples/demo-four-harnesses.png)
 
 *The demo uses simulated agent sessions and sample project data.*
 
@@ -356,3 +363,15 @@ The architecture and part of the assets derive from
 [hiroppy/tmux-agent-sidebar](https://github.com/hiroppy/tmux-agent-sidebar) —
 see [NOTICE](./NOTICE). The orchestration ideas come from
 [herdr](https://herdr.dev).
+
+## Contributing
+
+Contributions, bug reports and feature requests are welcome. Please open an [issue](https://github.com/minhnhat97kg/tmux-agent/issues) or a pull request.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE). See [NOTICE](NOTICE) for attribution.
+
+---
+
+README structure adapted from [readme-md-generator](https://github.com/kefranabg/readme-md-generator).
