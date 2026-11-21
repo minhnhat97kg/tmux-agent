@@ -213,6 +213,8 @@ global note. The sidebar and dashboard show both scopes; global notes are
 marked `[global]`. The sidebar shows at most five recent notes; open the
 dashboard to view the rest. Select a note there to read or delete it. The
 CLI's `ctx` lists the chosen scope only; use `ctx --global` to read global notes.
+Unnamed agents' new notes show their agent type and project; older notes
+without that information show their tmux pane ID.
 
 ### Task board & team
 

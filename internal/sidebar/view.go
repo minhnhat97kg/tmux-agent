@@ -569,7 +569,7 @@ func (m Model) boardLines(width, free int) []string {
 	author := lipgloss.NewStyle().Foreground(m.theme.Branch)
 	text := lipgloss.NewStyle().Foreground(m.theme.TextMuted)
 	for _, n := range notes {
-		a := truncateEllipsis(n.Author, width/3)
+		a := truncateEllipsis(n.DisplayAuthor(), width/2)
 		body := strings.ReplaceAll(n.Text, "\n", " ")
 		if n.Scope == sharedctx.Global {
 			body = "[global] " + body

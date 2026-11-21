@@ -15,7 +15,7 @@ func TestBoardRefreshShowsGlobalNote(t *testing.T) {
 	m := NewModel("%sidebar")
 	m.viewport.Height = 10
 	m.rows = []Row{{PaneID: "%1"}}
-	if _, err := sharedctx.Add(sharedctx.Global, "worker", "%1", "new global note"); err != nil {
+	if _, err := sharedctx.Add(sharedctx.Global, "worker", "%1", "new global note", ""); err != nil {
 		t.Fatal(err)
 	}
 	msg := detailFetchCmd("%1", path)().(detailMsg)

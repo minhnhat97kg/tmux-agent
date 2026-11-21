@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -361,9 +362,15 @@ func cmdCtx(args []string, stdout, stderr io.Writer) int {
 	}
 	pane := selfPane()
 	author := pane
+	label := ""
 	if pane != "" {
 		if n := tmux.GetPaneOptionValue(pane, tmux.PaneName); n != "" {
 			author = n
+		} else if agent := tmux.GetPaneOptionValue(pane, tmux.PaneAgent); agent != "" {
+			label = agent
+			if wd, err := os.Getwd(); err == nil {
+				label += " · " + filepath.Base(wd)
+			}
 		}
 	}
 	if author == "" {
@@ -377,7 +384,7 @@ func cmdCtx(args []string, stdout, stderr io.Writer) int {
 		}
 		return exitOK
 	case "add":
-		e, err := sharedctx.Add(scope, author, pane, strings.Join(rest, " "))
+		e, err := sharedctx.Add(scope, author, pane, strings.Join(rest, " "), label)
 		if err != nil {
 			fmt.Fprintln(stderr, "ctx add:", err)
 			return exitFailure

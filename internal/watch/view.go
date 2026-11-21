@@ -280,7 +280,7 @@ func (m model) notesBox(w, h int) []string {
 			bar, text = m.fg(m.theme.Accent).Render("▌ "), m.fg(m.theme.TextPrimary)
 			selLine = len(body)
 		}
-		head := bar + m.fg(m.theme.Branch).Bold(true).Render(n.Author) + " " + dim.Render(n.Time.Format("15:04"))
+		head := bar + m.fg(m.theme.Branch).Bold(true).Render(n.DisplayAuthor()) + " " + dim.Render(n.Time.Format("15:04"))
 		if n.Scope == sharedctx.Global {
 			head += " " + dim.Render("[global]")
 		}
@@ -349,7 +349,7 @@ func (m model) noteDetailBox(w, h int) []string {
 	n := m.notes[m.cursor[focusNotes]]
 	dim := m.fg(m.theme.TextDim)
 	body := []string{
-		dim.Render("by ") + m.fg(m.theme.Branch).Bold(true).Render(n.Author) +
+		dim.Render("by ") + m.fg(m.theme.Branch).Bold(true).Render(n.DisplayAuthor()) +
 			dim.Render(" · "+n.Time.Format("2006-01-02 15:04")+" · pane "+n.Pane+" · id "+n.ID),
 		"",
 	}

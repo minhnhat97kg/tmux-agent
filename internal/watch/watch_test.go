@@ -34,11 +34,11 @@ func TestAddGlobalNoteFromBoard(t *testing.T) {
 
 func TestDeleteGlobalNoteFromProjectBoard(t *testing.T) {
 	t.Setenv("TMUX_AGENT_CONTEXT_DIR", t.TempDir())
-	global, err := sharedctx.Add(sharedctx.Global, "agent", "%1", "note")
+	global, err := sharedctx.Add(sharedctx.Global, "agent", "%1", "note", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	project, err := sharedctx.Add("project", "agent", "%1", "project")
+	project, err := sharedctx.Add("project", "agent", "%1", "project", "")
 	if err != nil {
 		t.Fatal(err)
 	}
