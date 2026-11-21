@@ -51,4 +51,6 @@ func TestSidebarLayoutHook(t *testing.T) {
 	waitWidth("30")
 	run("resize-pane", "-t", pane, "-x", "40")
 	waitWidth("30")
+	run("select-layout", "even-vertical")
+	waitWidth("200")
 }

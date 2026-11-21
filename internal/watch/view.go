@@ -12,6 +12,7 @@ import (
 
 	"tmux-agent/internal/config"
 	"tmux-agent/internal/roles"
+	"tmux-agent/internal/sharedctx"
 	"tmux-agent/internal/sidebar"
 	"tmux-agent/internal/tmux"
 )
@@ -280,13 +281,16 @@ func (m model) notesBox(w, h int) []string {
 			selLine = len(body)
 		}
 		head := bar + m.fg(m.theme.Branch).Bold(true).Render(n.Author) + " " + dim.Render(n.Time.Format("15:04"))
+		if n.Scope == sharedctx.Global {
+			head += " " + dim.Render("[global]")
+		}
 		body = append(body, spread(head, dim.Render(n.ID), iw))
 		for _, l := range noteBody(n.Text, iw-2) {
 			body = append(body, bar+text.Render(l))
 		}
 	}
 	if len(m.notes) == 0 {
-		body = []string{dim.Render("empty · a to add a note or TODO")}
+		body = []string{dim.Render("empty · a project note · G global note")}
 	}
 	if rows := h - 2; selLine+2 > rows {
 		body = body[min(len(body), selLine+2-rows):]
@@ -353,7 +357,11 @@ func (m model) noteDetailBox(w, h int) []string {
 	for _, l := range strings.Split(ansi.Wordwrap(n.Text, w-4, ""), "\n") {
 		body = append(body, text.Render(l))
 	}
-	body = append(body, "", dim.Render("d delete · 1 back to agents · tmux-agent ctx rm "+n.ID))
+	flag := ""
+	if n.Scope == sharedctx.Global {
+		flag = " --global"
+	}
+	body = append(body, "", dim.Render("d delete · 1 back to agents · tmux-agent ctx"+flag+" rm "+n.ID))
 	return m.box("Note", fmt.Sprintf("%d/%d", m.cursor[focusNotes]+1, len(m.notes)), "", body, w, h, true)
 }
 
@@ -420,7 +428,7 @@ func (m model) footer() []string {
 	case focusAgents:
 		hints = []string{"j/k", "select", "enter", "jump", "s", "send prompt", "a", "add note"}
 	case focusNotes:
-		hints = []string{"j/k", "select", "a", "add note", "d", "delete note"}
+		hints = []string{"j/k", "select", "a", "project note", "G", "global note", "d", "delete"}
 	case focusRoles:
 		hints = []string{"j/k", "select", "n", "start agent", "e", "edit", "a", "new role", "d", "delete yours"}
 	case focusSettings:

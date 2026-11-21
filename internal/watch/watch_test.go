@@ -4,13 +4,54 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
 	"tmux-agent/internal/config"
+	"tmux-agent/internal/sharedctx"
 	"tmux-agent/internal/sidebar"
 	"tmux-agent/internal/tmux"
 )
+
+func TestAddGlobalNoteFromBoard(t *testing.T) {
+	t.Setenv("TMUX_AGENT_CONTEXT_DIR", t.TempDir())
+	m := model{scope: "project", focus: focusNotes, input: textinput.New()}
+	next, _ := m.updateKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("G")})
+	m = next.(model)
+	if m.mode != inputGlobalNote || !strings.Contains(m.input.Placeholder, "global") {
+		t.Fatal("G must open the global note input")
+	}
+	m.input.SetValue("shared across projects")
+	m.updateInput(tea.KeyMsg{Type: tea.KeyEnter})
+	if got := sharedctx.List(sharedctx.Global); len(got) != 1 || got[0].Text != "shared across projects" {
+		t.Fatalf("global notes = %+v", got)
+	}
+	if got := sharedctx.List("project"); len(got) != 0 {
+		t.Fatalf("unexpected project notes = %+v", got)
+	}
+}
+
+func TestDeleteGlobalNoteFromProjectBoard(t *testing.T) {
+	t.Setenv("TMUX_AGENT_CONTEXT_DIR", t.TempDir())
+	global, err := sharedctx.Add(sharedctx.Global, "agent", "%1", "note")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project, err := sharedctx.Add("project", "agent", "%1", "project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := model{scope: "project", focus: focusNotes, notes: sharedctx.ListVisible("project")}
+	m.cursor[focusNotes] = 0
+	if m.notes[0].ID != global.ID {
+		t.Fatal("unexpected note order")
+	}
+	m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	if len(sharedctx.List(sharedctx.Global)) != 0 || len(sharedctx.List("project")) != 1 || sharedctx.List("project")[0].ID != project.ID {
+		t.Fatal("deleting a global note must leave project notes intact")
+	}
+}
 
 func row(id, name string, st tmux.PaneStatus, unseen bool, doing string) agentRow {
 	tool, text, _ := strings.Cut(doing, " ")

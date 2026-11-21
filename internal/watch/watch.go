@@ -78,6 +78,7 @@ type inputMode int
 const (
 	inputNone inputMode = iota
 	inputNote
+	inputGlobalNote
 	inputRole // name of a new role
 	inputSend
 )
@@ -211,7 +212,7 @@ func load(selected string) snapshot {
 			snap.summary, _ = sidebar.Summary(sel.Prompt, sidebar.AvatarConfigFromTmux())
 		}
 	}
-	snap.notes = sharedctx.List(snap.scope)
+	snap.notes = sharedctx.ListVisible(snap.scope)
 	return snap
 }
 
@@ -507,6 +508,13 @@ func (m model) updateKeys(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.input.Placeholder = "note for every agent on this project"
 		m.input.SetValue("")
 		return m, m.input.Focus()
+	case "G":
+		if m.focus == focusNotes {
+			m.mode = inputGlobalNote
+			m.input.Placeholder = "global note for every project"
+			m.input.SetValue("")
+			return m, m.input.Focus()
+		}
 	case "n":
 		if m.focus == focusRoles && len(m.roles) > 0 {
 			role := m.roles[m.cursor[focusRoles]]
@@ -528,7 +536,8 @@ func (m model) updateKeys(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.focus == focusNotes && len(m.notes) > 0 {
-			if err := sharedctx.Remove(m.scope, m.notes[m.cursor[focusNotes]].ID); err != nil {
+			note := m.notes[m.cursor[focusNotes]]
+			if err := sharedctx.Remove(note.Scope, note.ID); err != nil {
 				m.flash = err.Error()
 			}
 			return m, m.poll()
@@ -558,8 +567,12 @@ func (m model) updateInput(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, editRole(text)
 		}
-		if mode == inputNote {
-			if _, err := sharedctx.Add(m.scope, "user", m.self, text); err != nil {
+		if mode == inputNote || mode == inputGlobalNote {
+			scope := m.scope
+			if mode == inputGlobalNote || scope == "" {
+				scope = sharedctx.Global
+			}
+			if _, err := sharedctx.Add(scope, "user", m.self, text); err != nil {
 				m.flash = err.Error()
 			}
 			return m, m.poll()

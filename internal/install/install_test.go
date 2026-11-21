@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -111,6 +112,46 @@ func TestPluginsPointAtBinary(t *testing.T) {
 		if err != nil || !strings.Contains(string(b), `"/opt/tmux-agent/bin/tmux-agent"`) {
 			t.Errorf("%s plugin must call the binary by absolute path:\n%s", name, b)
 		}
+	}
+}
+
+func TestPiReportsLifecycleInOrder(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is required to exercise the Pi extension")
+	}
+	dir := t.TempDir()
+	bin := filepath.Join(dir, `fake "agent`)
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n[ \"$2\" = running ] && sleep 0.2\nprintf '%s\\n' \"$2\" >> \"$REPORT_LOG\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	e := testEnv(t)
+	e.bin = bin
+	plugin := filepath.Join(dir, "plugin.mjs")
+	if err := os.WriteFile(plugin, []byte(e.pluginSource("pi")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	driver := `import extension from './plugin.mjs';
+const handlers = {};
+extension({on: (name, fn) => handlers[name] = fn});
+handlers.session_start({}, {mode: 'tui', isIdle: () => true});
+handlers.agent_start();
+handlers.agent_settled({}, {isIdle: () => true});
+await new Promise(resolve => setTimeout(resolve, 1000));
+`
+	driverPath := filepath.Join(dir, "driver.mjs")
+	if err := os.WriteFile(driverPath, []byte(driver), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	log := filepath.Join(dir, "reports")
+	cmd := exec.Command(node, driverPath)
+	cmd.Env = append(os.Environ(), "TMUX_PANE=%1", "REPORT_LOG="+log)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("extension: %v: %s", err, out)
+	}
+	got, err := os.ReadFile(log)
+	if err != nil || string(got) != "idle\nrunning\nidle\n" {
+		t.Fatalf("reports = %q, err = %v", got, err)
 	}
 }
 

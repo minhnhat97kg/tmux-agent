@@ -273,7 +273,8 @@ func (e env) pluginSource(name string) string {
 	case "opencode":
 		return strings.Replace(assets.OpenCodePlugin, `{ cmd: "tmux-agent",`, fmt.Sprintf(`{ cmd: %q,`, e.bin), 1)
 	case "pi":
-		return strings.ReplaceAll(piExtension, "{{BIN}}", e.bin)
+		bin, _ := json.Marshal(e.bin)
+		return strings.ReplaceAll(piExtension, "{{BIN}}", string(bin))
 	}
 	return ""
 }
@@ -285,13 +286,20 @@ const piExtension = `// installed by tmux-agent — ` + "`tmux-agent install pi`
 // @ts-nocheck
 import { spawn } from "node:child_process";
 
-const BIN = "{{BIN}}";
+const BIN = {{BIN}};
+let pending = Promise.resolve();
 
 function report(status) {
   if (!process.env.TMUX_PANE) return;
-  try {
-    spawn(BIN, ["set-status", status, "--agent", "pi"], { stdio: "ignore", detached: true }).unref();
-  } catch {}
+  // Preserve lifecycle order even when an earlier tmux command is slow.
+  pending = pending.then(() => new Promise((resolve) => {
+    try {
+      const child = spawn(BIN, ["set-status", status, "--agent", "pi"], { stdio: "ignore", detached: true });
+      child.once("error", resolve);
+      child.once("close", resolve);
+      child.unref();
+    } catch { resolve(); }
+  }));
 }
 
 export default function (pi) {

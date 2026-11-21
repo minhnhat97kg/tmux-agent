@@ -38,12 +38,12 @@ type detailMsg struct {
 // the left pane").
 func detailFetchCmd(paneID, path string) tea.Cmd {
 	return func() tea.Msg {
-		msg := detailMsg{PaneID: paneID}
+		msg := detailMsg{PaneID: paneID, Scope: sharedctx.Global}
 		if path != "" {
 			msg.GitData = git.FetchGitData(path)
 			msg.Scope = sharedctx.Scope(path)
-			msg.Notes = sharedctx.List(msg.Scope)
 		}
+		msg.Notes = sharedctx.ListVisible(msg.Scope)
 		return msg
 	}
 }

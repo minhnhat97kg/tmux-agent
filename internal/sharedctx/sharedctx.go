@@ -32,6 +32,7 @@ type Entry struct {
 	Pane   string    `json:"pane"`
 	Time   time.Time `json:"time"`
 	Text   string    `json:"text"`
+	Scope  string    `json:"-"`
 }
 
 // Global is the scope name of the cross-project board.
@@ -113,11 +114,22 @@ func List(scope string) []Entry {
 		}
 		var e Entry
 		if json.Unmarshal(b, &e) == nil {
+			e.Scope = scope
 			out = append(out, e)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Time.Before(out[j].Time) })
 	return out
+}
+
+// ListVisible includes global notes alongside the selected project, oldest first.
+func ListVisible(scope string) []Entry {
+	if scope == "" || scope == Global {
+		return List(Global)
+	}
+	entries := append(List(scope), List(Global)...)
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Time.Before(entries[j].Time) })
+	return entries
 }
 
 // Remove deletes one note in scope by id.

@@ -22,7 +22,7 @@ description: Coordinate other AI coding agents (Claude Code, Codex, Pi, Copilot,
 | `{{BIN}} diff <name> [--stat]` · `merge <name> [--discard]` · `discard <name>` | Review / keep / drop a worktree agent's changes |
 | `{{BIN}} plan run <file>` | Runs tasks in dependency order; file lines: `name [@role] [after a,b]: prompt` |
 | `{{BIN}} list --json` · `events --json` · `tokens` | Machine-readable list / event stream; token usage per agent |
-| `{{BIN}} events` | Streams status changes / tool calls of all agents, one tab-separated line each (`time agent kind text`) |
+| `{{BIN}} events [--json]` | Long-running stream of observed status / tool changes; `--json` emits one JSON object per line |
 
 `<pane>` is an agent name or a tmux target (`%12`, `sess:1.2`).
 
@@ -34,13 +34,22 @@ Statuses: `running` (working), `background` (agent stopped, background shell sti
 ```sh
 {{BIN}} name lead                              # name yourself once
 {{BIN}} new --name tester                      # or reuse an idle agent from `list`
-{{BIN}} send tester --wait --timeout 20m "Run the test suite and fix any failures"
-{{BIN}} read tester -n 80                      # read the result
+{{BIN}} send tester "Run the test suite and fix any failures"
 ```
+
+## Listening without blocking the conversation
+
+- To wait for one agent, send its task without `--wait`, then run `{{BIN}} wait <pane> --timeout 30m` once using your harness's background command tool, if it delivers command completion notifications to the conversation. Keep the handle and continue other work. On completion inspect the exit code and output: `waiting` needs user attention, `idle` / `done` may have results, and exit 124 means timeout; verify with `list` and `read`.
+- `wait` observes pane status, not a specific task or queued message. A fast task or queued follow-up can race with status changes; inspect `queue <pane>` and the agent's output before treating the task as complete.
+- For a continuous view of several agents, use `{{BIN}} events --json` only if the harness can deliver streaming output to the conversation. Start it before sending work, keep its handle, and stop it when it is no longer needed.
+- Events have `time`, `agent`, `kind`, and `text`. On a relevant `done`, `idle`, `waiting`, or `error` event, use `{{BIN}} list --json` and `{{BIN}} read <pane> -n 80` to verify the current state and inspect the result or question. `agent` is a display name when available, otherwise a pane ID; a `gone` event uses the pane ID.
+- The stream samples pane state about once per second, starts with a silent snapshot, and has no replay or ready acknowledgement. It can miss short transitions and startup races; reconcile with `list` rather than treating the stream as a complete history.
+- Do not run `wait` or `send --wait` in a foreground tool call when chat must remain responsive. Do not use `sleep` loops, repeated status checks, or messages to your own pane to simulate notifications. The `wait` command checks status internally and returns after the state matches or the timeout expires.
+- A background process or redirected file alone cannot resume a finished chat turn. If your harness does not deliver background completion or stream output as conversation events, say that automatic follow-up is unavailable and return control to the user; check the current status when asked. Never claim you will be notified automatically without that harness capability.
 
 - `new` may report the agent waiting on a startup prompt (e.g. folder trust): that is the user's call — tell them.
 - `{{BIN}} answer <pane> <option>` exists for the user; don't use it to approve on someone's behalf unless the user explicitly told you to.
-- If `wait` prints `waiting`, the other agent needs approval. Tell the user which pane (`read` it to quote the question). Do not answer approval prompts yourself unless the user told you to.
+- If an agent is `waiting`, it needs approval or an answer. Tell the user which pane (`read` it to quote the question). Do not answer approval prompts yourself unless the user told you to.
 - Prompts are typed as one line. Keep them self-contained; the other agent can't see your conversation.
 - Don't `send` to a `running` pane unless you mean to queue a follow-up.
 
@@ -50,7 +59,9 @@ Notes every agent working on the same project (git repo of your current director
 
 ```sh
 {{BIN}} ctx                                    # read all notes: id  author  time  text
+{{BIN}} ctx --global                           # read cross-project notes
 {{BIN}} ctx add "auth refactor lives in internal/auth; don't edit until I post done"
+{{BIN}} ctx --global add "shared note for all projects"
 {{BIN}} ctx rm <id>                            # remove a note that is no longer true
 {{BIN}} ctx clear --mine                       # remove all your notes when your task ends
 ```
@@ -75,7 +86,8 @@ Lead agent (splitting work):
 {{BIN}} ctx add "TODO @w2: update the README install section"
 {{BIN}} new --name w1 && {{BIN}} send w1 "You are w1. Work the task board (tmux-agent skill, task board convention): do every TODO @w1."
 {{BIN}} new --name w2 && {{BIN}} send w2 "You are w2. Work the task board (tmux-agent skill, task board convention): do every TODO @w2."
-{{BIN}} wait w1; {{BIN}} wait w2; {{BIN}} ctx   # read the DONE lines
+# Start a background `{{BIN}} wait w1` and `{{BIN}} wait w2` if supported.
+# On completion notifications, inspect each worker and read `{{BIN}} ctx`.
 ```
 
 Worker (you were told to work the board):

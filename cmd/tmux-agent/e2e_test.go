@@ -50,7 +50,8 @@ func TestHookClaudeEndToEndOnRealTmux(t *testing.T) {
 	t.Setenv("TMUX_TMPDIR", t.TempDir())
 	t.Setenv("TMUX_AGENT_LOG_DIR", t.TempDir())
 
-	if out, err := exec.Command("tmux", "new-session", "-d", "-x", "80", "-y", "24").CombinedOutput(); err != nil {
+	// Do not load the user's tmux hooks or background scraper in this server.
+	if out, err := exec.Command("tmux", "-f", "/dev/null", "new-session", "-d", "-x", "80", "-y", "24").CombinedOutput(); err != nil {
 		t.Fatalf("tmux new-session: %v\n%s", err, out)
 	}
 	t.Cleanup(func() { exec.Command("tmux", "kill-server").Run() })

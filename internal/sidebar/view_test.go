@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
@@ -368,9 +369,45 @@ func TestContextLinesFitFreeSpace(t *testing.T) {
 	if len(got) != 6 || !strings.Contains(got[1], "board · calc") || !strings.Contains(got[4], "note 5") || !strings.Contains(got[5], "+3 earlier") {
 		t.Fatalf("overflowing board = %q", got)
 	}
+	m.viewport.Height = 30
+	got = m.contextLines(30)
+	if len(got) != 8 || strings.Contains(strings.Join(got, " "), "note 0") || !strings.Contains(got[7], "+1 earlier") {
+		t.Fatalf("board should show five newest notes: %q", got)
+	}
+	m.viewport.Height = 8
 	m.rows = append(m.rows, make([]Row, 5)...)
 	if got := m.contextLines(30); got != nil {
 		t.Fatalf("no room must hide the section, got %q", got)
+	}
+}
+
+func TestHorizontalSidebarShowsThreeColumns(t *testing.T) {
+	m := NewModel("%sidebar")
+	m.width, m.height = 120, 12
+	m.rows = []Row{{PaneID: "%1", Base: "agent-one"}, {PaneID: "%2", Base: "agent-two"}}
+	m.notes = []sharedctx.Entry{{Author: "worker", Text: "board-message", Scope: sharedctx.Global}}
+	m.notesScope = "project-1234"
+	m.resizeViewport()
+	lines := strings.Split(ansi.Strip(m.View()), "\n")
+	if len(lines) != m.height || m.viewport.Width != 40 || m.viewport.Height != 11 {
+		t.Fatalf("horizontal size: lines=%d viewport=%dx%d", len(lines), m.viewport.Width, m.viewport.Height)
+	}
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "agent-one") || !strings.Contains(joined, "board-message") {
+		t.Fatalf("missing agent or board: %s", joined)
+	}
+	for _, line := range lines[:len(lines)-1] {
+		if lipgloss.Width(line) != 120 {
+			t.Fatalf("line has width %d: %q", lipgloss.Width(line), line)
+		}
+	}
+	updated, _ := m.handleMouse(tea.MouseMsg{X: 45, Y: 1, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if updated.(Model).cursor != 1 {
+		t.Fatal("click in agent column should select second pane")
+	}
+	updated, _ = m.handleMouse(tea.MouseMsg{X: 100, Y: 1, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if updated.(Model).cursor != 0 {
+		t.Fatal("click in board must not select an agent")
 	}
 }
 

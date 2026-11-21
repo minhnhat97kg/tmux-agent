@@ -65,3 +65,22 @@ func TestScopeIsRepoRoot(t *testing.T) {
 		t.Error("different dirs must get different scopes")
 	}
 }
+
+func TestListVisibleIncludesGlobalAndPreservesScope(t *testing.T) {
+	t.Setenv("TMUX_AGENT_CONTEXT_DIR", t.TempDir())
+	project, err := Add("project", "a", "%1", "project note")
+	if err != nil {
+		t.Fatal(err)
+	}
+	global, err := Add(Global, "b", "%2", "global note")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := ListVisible("project")
+	if len(got) != 2 || got[0].ID != project.ID || got[0].Scope != "project" || got[1].ID != global.ID || got[1].Scope != Global {
+		t.Fatalf("visible notes = %+v", got)
+	}
+	if got := ListVisible(Global); len(got) != 1 || got[0].ID != global.ID {
+		t.Fatalf("global notes = %+v", got)
+	}
+}

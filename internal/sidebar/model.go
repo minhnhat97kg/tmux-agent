@@ -933,7 +933,7 @@ func (m *Model) syncViewport() {
 		if n := len(m.removeConfirmPaneIDs); n > 0 {
 			paneID, branch = "", fmt.Sprintf("%d worktrees", n)
 		}
-		m.viewport.SetContent(renderRemoveConfirmPopup(paneID, branch, m.removeConfirmError, m.width, m.theme))
+		m.viewport.SetContent(renderRemoveConfirmPopup(paneID, branch, m.removeConfirmError, m.viewport.Width, m.theme))
 		m.viewport.SetYOffset(0)
 		return
 	}
@@ -941,7 +941,7 @@ func (m *Model) syncViewport() {
 	if m.popup.IsRepoOpen() {
 		names := RepoNames(m.allRepoNames())
 		selected := m.popup.RepoSelected()
-		m.viewport.SetContent(renderRepoPopup(names, selected, m.width, m.theme))
+		m.viewport.SetContent(renderRepoPopup(names, selected, m.viewport.Width, m.theme))
 
 		// Important 2 (final review 3b): previously SetContent did not reset
 		// YOffset, so the popup was drawn from whatever offset was left over
@@ -958,7 +958,7 @@ func (m *Model) syncViewport() {
 		return
 	}
 
-	m.viewport.SetContent(renderRowsAt(m.rows, m.width, m.cursor, m.theme, m.icons, m.animFrame/2))
+	m.viewport.SetContent(renderRowsAt(m.rows, m.viewport.Width, m.cursor, m.theme, m.icons, m.animFrame/2))
 	if idx, ok := rowIndexOfCursor(m.rows, m.cursor); ok {
 		m.scroll.EnsureVisible(idx, len(m.rows), m.viewport.Height)
 		m.viewport.SetYOffset(m.scroll.Offset)
@@ -1035,7 +1035,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.viewport.Width = msg.Width
 		// The key-hint line is drawn separately by view.go, OUTSIDE the
 		// viewport — the remainder is the scrollable pane list. (The fixed
 		// activity/history panel was removed: user feedback "don't show
@@ -1169,7 +1168,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The bubble's height follows what the avatar says (bubbleRows),
 		// which can change between refreshes (the hour turns): keep the
 		// list's height in step so the frame never outgrows the pane.
-		if m.height > 0 && m.viewport.Height != max(0, m.height-footerHeight-m.avatarH()) {
+		if m.height > 0 && m.viewport.Height != max(0, m.height-footerHeight-m.listTop()) {
 			m.resizeViewport()
 		}
 		if m.animFrame%2 == 0 {
@@ -1230,7 +1229,7 @@ func (m *Model) imageRefresh(msg RefreshMsg) tea.Cmd {
 	if msg.ClientsSig != m.imgClients {
 		m.imgClients, m.imgHave = msg.ClientsSig, map[uint32]bool{}
 	}
-	maxCols := m.width - 1 // renderAvatar's left margin
+	maxCols := m.avatarWidth() - 1 // renderAvatar's left margin
 	key := m.avatar.Character + "\x00" + strconv.Itoa(min(maxCols/2, maxImageRows))
 	for _, k := range []string{imageOption, imageOption + "_sleep", imageOption + "_work", imageOption + "_happy", imageOption + "_alert", imageOption + "_sad", imageRowsOpt} {
 		key += "\x00" + msg.ImageOpts[k]
@@ -1269,8 +1268,28 @@ func (m Model) avatarH() int {
 // resizeViewport gives the list what's left under the avatar and above the
 // key-hint line.
 func (m *Model) resizeViewport() {
-	m.viewport.Height = max(0, m.height-footerHeight-m.avatarH())
+	m.viewport.Width = m.width
+	if m.horizontal() {
+		m.viewport.Width = m.width / 3
+	}
+	m.viewport.Height = max(0, m.height-footerHeight-m.listTop())
 	m.syncViewport()
+}
+
+func (m Model) horizontal() bool { return m.width >= 90 && m.width > 2*m.height }
+
+func (m Model) avatarWidth() int {
+	if m.horizontal() {
+		return m.width / 3
+	}
+	return m.width
+}
+
+func (m Model) listTop() int {
+	if m.horizontal() {
+		return 0
+	}
+	return m.avatarH()
 }
 
 // quickAction acts on the most urgent alert (avatar.go: Act) — space, or a
@@ -1300,11 +1319,13 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case msg.Y == m.height-1 && msg.X < lipgloss.Width(expandButton):
 		return m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
-	case msg.Y < m.avatarH():
+	case m.horizontal() && msg.Y < m.height-footerHeight && msg.X < m.avatarWidth() && m.avatar.enabled():
 		return m.quickAction()
-	case msg.Y-m.avatarH() < m.viewport.Height && !m.popup.IsRepoOpen() && !m.removeConfirmOpen:
+	case !m.horizontal() && msg.Y < m.avatarH():
+		return m.quickAction()
+	case msg.Y >= m.listTop() && msg.Y-m.listTop() < m.viewport.Height && (!m.horizontal() || (msg.X >= m.avatarWidth() && msg.X < m.avatarWidth()+m.viewport.Width)) && !m.popup.IsRepoOpen() && !m.removeConfirmOpen:
 		// Row under the click → its index among selectable pane rows.
-		line := m.viewport.YOffset + msg.Y - m.avatarH()
+		line := m.viewport.YOffset + msg.Y - m.listTop()
 		if line >= len(m.rows) || !isSelectablePaneRow(m.rows[line]) {
 			return m, nil
 		}

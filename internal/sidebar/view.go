@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"tmux-agent/internal/sharedctx"
 	"tmux-agent/internal/tmux"
 )
 
@@ -103,6 +104,31 @@ func renderRowsAt(rows []Row, width, cursor int, theme Theme, icons Icons, step 
 		paneIdx++
 	}
 	return b.String()
+}
+
+// horizontalView gives the avatar, agent list and board their own columns.
+func (m Model) horizontalView(width int) string {
+	height := max(0, m.height-footerHeight)
+	leftWidth, middleWidth := width/3, width/3
+	rightWidth := width - leftWidth - middleWidth
+	var avatar []string
+	if m.avatar.enabled() {
+		avatar = m.renderAvatar(leftWidth)
+	}
+	list := strings.Split(m.viewport.View(), "\n")
+	board := m.boardLines(rightWidth, height)
+	column := func(lines []string, row, w int) string {
+		line := ""
+		if row < len(lines) {
+			line = lines[row]
+		}
+		return lipgloss.NewStyle().Width(w).MaxWidth(w).Render(line)
+	}
+	lines := make([]string, 0, height+1)
+	for i := 0; i < height; i++ {
+		lines = append(lines, column(avatar, i, leftWidth)+column(list, i, middleWidth)+column(board, i, rightWidth))
+	}
+	return strings.Join(append(lines, renderKeyHints(m, width)), "\n")
 }
 
 // renderHeaderText draws a bold title line — the repo-picker popup title.
@@ -472,6 +498,9 @@ func (m Model) View() string {
 	if width <= 0 {
 		width = fallbackWidth
 	}
+	if m.horizontal() {
+		return m.horizontalView(width)
+	}
 	list := m.viewport.View()
 	if ctx := m.contextLines(width); len(ctx) > 0 {
 		lines := strings.Split(list, "\n")
@@ -499,6 +528,7 @@ func (m Model) View() string {
 // contextMinLines: the Context section only appears when at least this many
 // blank lines are left under the list (spacer + divider + one note).
 const contextMinLines = 3
+const contextMaxNotes = 5
 
 // contextLines renders the shared-context board of the selected agent's
 // project into the free space under the list: a divider with the project
@@ -513,6 +543,13 @@ func (m Model) contextLines(width int) []string {
 	if free < contextMinLines {
 		return nil
 	}
+	return m.boardLines(width, free)
+}
+
+func (m Model) boardLines(width, free int) []string {
+	if m.popup.IsRepoOpen() || m.removeConfirmOpen || len(m.notes) == 0 || free < contextMinLines {
+		return nil
+	}
 	dim := lipgloss.NewStyle().Foreground(m.theme.TextDim)
 	project := m.notesScope
 	if i := strings.LastIndexByte(project, '-'); i > 0 {
@@ -522,18 +559,24 @@ func (m Model) contextLines(width int) []string {
 	out := []string{"", dim.Render(truncateEllipsis(head+strings.Repeat("─", max(0, width-lipgloss.Width(head))), width))}
 	room := free - len(out)
 	notes := m.notes
-	more := 0
-	if len(notes) > room {
-		more = len(notes) - (room - 1)
-		notes = notes[len(notes)-(room-1):] // newest last, like the board
+	count := min(len(notes), contextMaxNotes, room)
+	more := len(notes) - count
+	if more > 0 && room > 1 {
+		count = min(count, room-1) // reserve a line for the hidden count
+		more = len(notes) - count
 	}
+	notes = notes[len(notes)-count:]
 	author := lipgloss.NewStyle().Foreground(m.theme.Branch)
 	text := lipgloss.NewStyle().Foreground(m.theme.TextMuted)
 	for _, n := range notes {
 		a := truncateEllipsis(n.Author, width/3)
-		out = append(out, author.Render(a)+" "+text.Render(truncateEllipsis(strings.ReplaceAll(n.Text, "\n", " "), width-lipgloss.Width(a)-1)))
+		body := strings.ReplaceAll(n.Text, "\n", " ")
+		if n.Scope == sharedctx.Global {
+			body = "[global] " + body
+		}
+		out = append(out, author.Render(a)+" "+text.Render(truncateEllipsis(body, width-lipgloss.Width(a)-1)))
 	}
-	if more > 0 {
+	if more > 0 && room > 1 {
 		out = append(out, dim.Render(truncateEllipsis(fmt.Sprintf("+%d earlier · o expand", more), width)))
 	}
 	return out

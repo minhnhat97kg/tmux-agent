@@ -121,8 +121,12 @@ you each time, allow it in the harness — for Claude, in
 | `,` | sidebar / dashboard | settings: sidebar opens the popup, dashboard jumps to the Settings tab |
 | `/` `r` `p` `v` `x` | sidebar | filter · repo filter · pin · select · delete worktree |
 | `tab` | dashboard | cycle Agents → Board → Roles → Settings (`1`–`4` select a tab; the right panel shows the full note / role prompt / setting; in Roles: `n` start an agent with it, `e` edit it in `$VISUAL`/`$EDITOR` (a built-in is copied to your roles dir first), `a` new role, `d` delete yours; in Settings: `j/k` move, `enter`/`space` toggle or cycle forward, `h/l` (`←/→`) cycle back/forward, `e` edit a text/number, `r` reset) |
-| `s` / `a` / `d` | dashboard | send a prompt / add a note / delete a note |
+| `s` / `a` / `G` / `d` | dashboard | send a prompt / add a project note / add a global note in Board / delete a note |
 | `o` `q` `esc` | dashboard | collapse |
+
+When the sidebar occupies a wide, short tmux row, it automatically arranges
+the avatar, agent list and context board in three columns. Narrow panes keep
+the vertical sidebar layout.
 
 ### CLI
 
@@ -159,10 +163,18 @@ An orchestration example (agents can do this themselves through the skill):
 tmux-agent name lead
 tmux-agent ctx add "API contract: …"            # every agent of this repo can read it
 tmux-agent new --name tester --role tester
-tmux-agent send tester --wait --timeout 20m "Run the tests and fix failures"
-tmux-agent read tester -n 80
-tmux-agent kill tester
+tmux-agent send tester "Run the tests and fix failures"
 ```
+
+For non-blocking monitoring of one agent, run `tmux-agent wait tester --timeout
+30m` once using your harness's background command tool, if it delivers command
+completion notifications to the conversation. Use `list --json`, `queue
+tester`, and `read tester -n 80` to verify the result: `wait` observes pane
+status rather than a particular task. For several agents, `events --json` can
+provide a continuous stream if the harness delivers streaming output. It
+samples once per second, starts silently, and does not replay events. A
+background process alone cannot wake an agent after a chat turn ends; without
+harness notifications, check status when the user asks.
 
 ### Approvals, warnings, notifications
 
@@ -194,11 +206,13 @@ work (`avatar`, `width`, `notify_url`…).
 
 ### Shared context
 
-Each **git repo** (by cwd) has its own board; `--global` is the board shared
-by all. Add a note with `tmux-agent ctx add "…"` in the project's directory,
-`a` in the dashboard (goes to the selected agent's project), or ask an agent
-to post one. The sidebar shows the latest notes ("board · <project>") in the free space under the
-list, only when the board has any; in the dashboard, `tab` → pick a note to read it in full.
+Each **git repo** (by cwd) has its own board; `--global` is shared across
+projects. Add notes with `tmux-agent ctx add "…"` or `tmux-agent ctx --global
+add "…"`. In the dashboard's Board tab, `a` adds a project note and `G` adds a
+global note. The sidebar and dashboard show both scopes; global notes are
+marked `[global]`. The sidebar shows at most five recent notes; open the
+dashboard to view the rest. Select a note there to read or delete it. The
+CLI's `ctx` lists the chosen scope only; use `ctx --global` to read global notes.
 
 ### Task board & team
 
@@ -235,8 +249,7 @@ Then hand out work and collect the results:
 tmux-agent ctx add "TODO @w1: write tests for internal/auth"
 tmux-agent ctx add "TODO @w2: update the README install section"
 tmux-agent send w1 "check the board"; tmux-agent send w2 "check the board"
-tmux-agent wait w1; tmux-agent wait w2
-tmux-agent ctx                             # read the DONE lines, then ctx rm them
+# On event notifications, inspect each worker and run tmux-agent ctx.
 ```
 
 Or let a lead agent do all of it: "split X into TODOs for w1 and w2 on the
