@@ -32,13 +32,22 @@ func TestAddGlobalNoteFromBoard(t *testing.T) {
 	}
 }
 
+func TestBoardListShowsOnlyScopeAndText(t *testing.T) {
+	m := model{theme: sidebar.DefaultTheme(), focus: focusNotes,
+		notes: []sharedctx.Entry{{Author: "%78", Pane: "%78", Scope: sharedctx.Global, Text: "global note"}}}
+	got := ansi.Strip(strings.Join(m.notesBox(40, 8), "\n"))
+	if !strings.Contains(got, "[G] global note") || strings.Contains(got, "%78") {
+		t.Fatalf("board = %q", got)
+	}
+}
+
 func TestDeleteGlobalNoteFromProjectBoard(t *testing.T) {
 	t.Setenv("TMUX_AGENT_CONTEXT_DIR", t.TempDir())
-	global, err := sharedctx.Add(sharedctx.Global, "agent", "%1", "note", "")
+	global, err := sharedctx.Add(sharedctx.Global, "agent", "%1", "note")
 	if err != nil {
 		t.Fatal(err)
 	}
-	project, err := sharedctx.Add("project", "agent", "%1", "project", "")
+	project, err := sharedctx.Add("project", "agent", "%1", "project")
 	if err != nil {
 		t.Fatal(err)
 	}

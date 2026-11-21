@@ -411,6 +411,19 @@ func TestHorizontalSidebarShowsThreeColumns(t *testing.T) {
 	}
 }
 
+func TestBoardShowsOnlyScopeAndText(t *testing.T) {
+	m := NewModel("%sidebar")
+	m.notes = []sharedctx.Entry{
+		{Author: "%78", Pane: "%78", Scope: sharedctx.Global, Text: "global note"},
+		{Author: "agent", Text: "project note"},
+	}
+	got := ansi.Strip(strings.Join(m.boardLines(40, 10), "\n"))
+	if !strings.Contains(got, "[G] global note") || !strings.Contains(got, "project note") ||
+		strings.Contains(got, "%78") || strings.Contains(got, "agent") {
+		t.Fatalf("board = %q", got)
+	}
+}
+
 // Name first, then only a clock (working) or a check (done, unseen).
 func TestRenderPaneText_NameThenStatusMarker(t *testing.T) {
 	icons := DefaultIcons()

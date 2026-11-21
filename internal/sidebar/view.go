@@ -566,15 +566,13 @@ func (m Model) boardLines(width, free int) []string {
 		more = len(notes) - count
 	}
 	notes = notes[len(notes)-count:]
-	author := lipgloss.NewStyle().Foreground(m.theme.Branch)
 	text := lipgloss.NewStyle().Foreground(m.theme.TextMuted)
 	for _, n := range notes {
-		a := truncateEllipsis(n.DisplayAuthor(), width/2)
 		body := strings.ReplaceAll(n.Text, "\n", " ")
 		if n.Scope == sharedctx.Global {
-			body = "[global] " + body
+			body = "[G] " + body
 		}
-		out = append(out, author.Render(a)+" "+text.Render(truncateEllipsis(body, width-lipgloss.Width(a)-1)))
+		out = append(out, text.Render(truncateEllipsis(body, width)))
 	}
 	if more > 0 && room > 1 {
 		out = append(out, dim.Render(truncateEllipsis(fmt.Sprintf("+%d earlier · o expand", more), width)))

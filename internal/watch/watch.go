@@ -572,7 +572,7 @@ func (m model) updateInput(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if mode == inputGlobalNote || scope == "" {
 				scope = sharedctx.Global
 			}
-			if _, err := sharedctx.Add(scope, "user", m.self, text, ""); err != nil {
+			if _, err := sharedctx.Add(scope, "user", m.self, text); err != nil {
 				m.flash = err.Error()
 			}
 			return m, m.poll()

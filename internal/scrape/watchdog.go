@@ -177,7 +177,7 @@ func (w *watchdog) checkConflicts(sessions []tmux.SessionInfo, now time.Time) {
 		if !w.reported[k] {
 			w.reported[k] = true
 			msg := fmt.Sprintf("⚠ %s are all editing %s — coordinate before editing it further", strings.Join(names, ", "), file)
-			sharedctx.Add(scopeOf[k], "tmux-agent", "", msg, "")
+			sharedctx.Add(scopeOf[k], "tmux-agent", "", msg)
 			hook.Notify("file conflict", msg)
 		}
 	}

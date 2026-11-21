@@ -15,12 +15,12 @@ func TestBoardRefreshShowsGlobalNote(t *testing.T) {
 	m := NewModel("%sidebar")
 	m.viewport.Height = 10
 	m.rows = []Row{{PaneID: "%1"}}
-	if _, err := sharedctx.Add(sharedctx.Global, "worker", "%1", "new global note", ""); err != nil {
+	if _, err := sharedctx.Add(sharedctx.Global, "worker", "%1", "new global note"); err != nil {
 		t.Fatal(err)
 	}
 	msg := detailFetchCmd("%1", path)().(detailMsg)
 	m.applyDetailMsg(msg)
-	if got := strings.Join(m.contextLines(50), "\n"); !strings.Contains(got, "[global] new global note") {
+	if got := strings.Join(m.contextLines(50), "\n"); !strings.Contains(got, "[G] new global note") {
 		t.Fatalf("board does not show new global note: %s", got)
 	}
 }

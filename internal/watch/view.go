@@ -31,7 +31,6 @@ import (
 const (
 	narrowLayout = 90
 	taskBoxH     = 6 // 4 content lines
-	noteMaxLines = 2
 )
 
 func (m model) fg(c lipgloss.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }
@@ -258,18 +257,7 @@ func project(scope string) string {
 	return scope
 }
 
-// noteBody wraps a note's text to width, at most noteMaxLines lines.
-func noteBody(text string, width int) []string {
-	lines := strings.Split(ansi.Wordwrap(text, width, ""), "\n")
-	if len(lines) > noteMaxLines {
-		lines = lines[:noteMaxLines]
-		lines[noteMaxLines-1] = ansi.Truncate(lines[noteMaxLines-1], width-1, "") + "…"
-	}
-	return lines
-}
-
 func (m model) notesBox(w, h int) []string {
-	iw := w - 4
 	dim := m.fg(m.theme.TextDim)
 	focused := m.focus == focusNotes
 	var body []string
@@ -280,20 +268,17 @@ func (m model) notesBox(w, h int) []string {
 			bar, text = m.fg(m.theme.Accent).Render("▌ "), m.fg(m.theme.TextPrimary)
 			selLine = len(body)
 		}
-		head := bar + m.fg(m.theme.Branch).Bold(true).Render(n.DisplayAuthor()) + " " + dim.Render(n.Time.Format("15:04"))
+		line := strings.ReplaceAll(n.Text, "\n", " ")
 		if n.Scope == sharedctx.Global {
-			head += " " + dim.Render("[global]")
+			line = "[G] " + line
 		}
-		body = append(body, spread(head, dim.Render(n.ID), iw))
-		for _, l := range noteBody(n.Text, iw-2) {
-			body = append(body, bar+text.Render(l))
-		}
+		body = append(body, bar+text.Render(line))
 	}
 	if len(m.notes) == 0 {
 		body = []string{dim.Render("empty · a project note · G global note")}
 	}
-	if rows := h - 2; selLine+2 > rows {
-		body = body[min(len(body), selLine+2-rows):]
+	if rows := h - 2; selLine+1 > rows {
+		body = body[min(len(body), selLine+1-rows):]
 	}
 	return m.box("Board · "+project(m.scope), fmt.Sprintf("%d", len(m.notes)), "", body, w, h, focused)
 }
@@ -349,8 +334,7 @@ func (m model) noteDetailBox(w, h int) []string {
 	n := m.notes[m.cursor[focusNotes]]
 	dim := m.fg(m.theme.TextDim)
 	body := []string{
-		dim.Render("by ") + m.fg(m.theme.Branch).Bold(true).Render(n.DisplayAuthor()) +
-			dim.Render(" · "+n.Time.Format("2006-01-02 15:04")+" · id "+n.ID),
+		dim.Render(n.Time.Format("2006-01-02 15:04") + " · id " + n.ID),
 		"",
 	}
 	text := m.fg(m.theme.TextPrimary)

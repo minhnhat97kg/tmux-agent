@@ -28,8 +28,7 @@ import (
 // Entry is one note on the board.
 type Entry struct {
 	ID     string    `json:"id"`
-	Author string    `json:"author"`          // agent name, or pane id when unnamed
-	Label  string    `json:"label,omitempty"` // human-readable author at creation
+	Author string    `json:"author"` // agent name, or pane id when unnamed
 	Pane   string    `json:"pane"`
 	Time   time.Time `json:"time"`
 	Text   string    `json:"text"`
@@ -74,7 +73,7 @@ func rootDir() string {
 }
 
 // Add posts a note to scope and returns it.
-func Add(scope, author, pane, text, label string) (Entry, error) {
+func Add(scope, author, pane, text string) (Entry, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return Entry{}, errors.New("empty note")
@@ -85,7 +84,6 @@ func Add(scope, author, pane, text, label string) (Entry, error) {
 		// notes typed by a handful of agents.
 		ID:     strconv.FormatInt(now.UnixNano()/1000, 36),
 		Author: author,
-		Label:  label,
 		Pane:   pane,
 		Time:   now,
 		Text:   text,
@@ -102,16 +100,6 @@ func Add(scope, author, pane, text, label string) (Entry, error) {
 	defer f.Close()
 	_, err = f.Write(b)
 	return e, err
-}
-
-func (e Entry) DisplayAuthor() string {
-	if e.Label != "" {
-		return e.Label
-	}
-	if e.Author == e.Pane && strings.HasPrefix(e.Author, "%") {
-		return "Agent"
-	}
-	return e.Author
 }
 
 // List returns every note in scope, oldest first. Unreadable files are
