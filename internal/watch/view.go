@@ -350,7 +350,7 @@ func (m model) noteDetailBox(w, h int) []string {
 	dim := m.fg(m.theme.TextDim)
 	body := []string{
 		dim.Render("by ") + m.fg(m.theme.Branch).Bold(true).Render(n.DisplayAuthor()) +
-			dim.Render(" · "+n.Time.Format("2006-01-02 15:04")+" · pane "+n.Pane+" · id "+n.ID),
+			dim.Render(" · "+n.Time.Format("2006-01-02 15:04")+" · id "+n.ID),
 		"",
 	}
 	text := m.fg(m.theme.TextPrimary)

@@ -109,7 +109,7 @@ func (e Entry) DisplayAuthor() string {
 		return e.Label
 	}
 	if e.Author == e.Pane && strings.HasPrefix(e.Author, "%") {
-		return "pane " + e.Author
+		return "Agent"
 	}
 	return e.Author
 }

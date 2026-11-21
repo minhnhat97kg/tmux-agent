@@ -89,7 +89,7 @@ func TestDisplayAuthor(t *testing.T) {
 	if got := (Entry{Author: "%78", Pane: "%78", Label: "opencode · netform"}).DisplayAuthor(); got != "opencode · netform" {
 		t.Fatalf("label = %q", got)
 	}
-	if got := (Entry{Author: "%78", Pane: "%78"}).DisplayAuthor(); got != "pane %78" {
+	if got := (Entry{Author: "%78", Pane: "%78"}).DisplayAuthor(); got != "Agent" {
 		t.Fatalf("legacy label = %q", got)
 	}
 }
